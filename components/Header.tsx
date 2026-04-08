@@ -1,16 +1,58 @@
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { uploadToCloudinary } from '../services/firebaseService';
 
 interface HeaderProps {
   syncStatus?: 'synced' | 'syncing' | 'offline';
+  onMenuClick?: () => void;
+  profilePhoto?: string | null;
+  onProfilePhotoUpdate?: (url: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ syncStatus = 'synced' }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  syncStatus = 'synced', 
+  onMenuClick, 
+  profilePhoto,
+  onProfilePhotoUpdate 
+}) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleProfileClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const url = await uploadToCloudinary(file);
+      onProfilePhotoUpdate?.(url);
+    } catch (error) {
+      console.error("Profile photo upload failed:", error);
+      alert("Photo upload failed. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b-[1.5px] border-slate-200/60 shadow-sm">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept="image/*" 
+        className="hidden" 
+      />
       <div className="px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl transition-all active:scale-90">
+          <button 
+            onClick={onMenuClick}
+            className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl transition-all active:scale-90"
+          >
             <i className="fa-solid fa-bars-staggered text-lg text-slate-800"></i>
           </button>
           <div>
@@ -43,8 +85,17 @@ const Header: React.FC<HeaderProps> = ({ syncStatus = 'synced' }) => {
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl border-2 border-slate-100 flex items-center justify-center cursor-pointer shadow-sm hover:border-[#11AB2F] transition-all bg-slate-50 text-slate-400">
-            <i className="fa-solid fa-user text-lg"></i>
+          <div 
+            onClick={handleProfileClick}
+            className={`w-10 h-10 rounded-xl border-2 border-slate-100 flex items-center justify-center cursor-pointer shadow-sm hover:border-[#11AB2F] transition-all bg-slate-50 text-slate-400 overflow-hidden relative ${isUploading ? 'opacity-50' : ''}`}
+          >
+            {isUploading ? (
+              <i className="fa-solid fa-circle-notch fa-spin text-lg text-[#11AB2F]"></i>
+            ) : profilePhoto ? (
+              <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <i className="fa-solid fa-user text-lg"></i>
+            )}
           </div>
         </div>
       </div>

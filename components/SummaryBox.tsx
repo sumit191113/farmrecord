@@ -4,9 +4,30 @@ import { FarmSummary } from '../types';
 
 interface SummaryBoxProps {
   data: FarmSummary;
+  onExportData?: () => void;
 }
 
-const SummaryBox: React.FC<SummaryBoxProps> = ({ data }) => {
+const SummaryBox: React.FC<SummaryBoxProps> = ({ data, onExportData }) => {
+  const [clickCount, setClickCount] = React.useState(0);
+  const clickTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleCardClick = () => {
+    setClickCount(prev => prev + 1);
+    
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+    }
+
+    clickTimerRef.current = setTimeout(() => {
+      setClickCount(0);
+    }, 1000); // Reset count if no click for 1 second
+
+    if (clickCount + 1 >= 4) {
+      onExportData?.();
+      setClickCount(0);
+    }
+  };
+
   // Format currency with Indian locale (en-IN) for Lakhs/Crores placement
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-IN').format(value);
@@ -21,7 +42,10 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({ data }) => {
   const isPositive = data.netProfit >= 0;
 
   return (
-    <div className="bg-gradient-to-br from-[#11AB2F] to-[#0A8C23] rounded-[24px] p-5 text-white shadow-lg shadow-green-200">
+    <div 
+      onClick={handleCardClick}
+      className="bg-gradient-to-br from-[#11AB2F] to-[#0A8C23] rounded-[24px] p-5 text-white shadow-lg shadow-green-200 cursor-pointer active:scale-[0.98] transition-all"
+    >
       <div className="flex justify-between items-center mb-4">
         <div>
           <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Net Profit</p>

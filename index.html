@@ -16,6 +16,21 @@
       .no-scrollbar::-webkit-scrollbar {
         display: none;
       }
+      @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-spin-slow {
+        animation: spin-slow 8s linear infinite;
+      }
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-8px); }
+        75% { transform: translateX(8px); }
+      }
+      .animate-shake {
+        animation: shake 0.2s ease-in-out 0s 2;
+      }
     </style>
 <script type="importmap">
 {

@@ -85,53 +85,51 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
       <div 
         key={month}
         onClick={() => setSelectedMonth(month)}
-        className="bg-white rounded-[24px] p-4 shadow-sm border-[1.5px] border-[#11AB2F]/50 hover:border-[#11AB2F] flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer mb-3.5 relative overflow-hidden group"
+        className="bg-white rounded-[20px] p-3 shadow-sm border border-slate-100 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer mb-2.5 relative overflow-hidden group"
       >
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[#11AB2F]/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none group-hover:bg-[#11AB2F]/10 transition-colors"></div>
-        
         <div className="flex-1 relative z-10">
-          <div className="flex items-center gap-2.5 mb-3">
-             <div className="w-8 h-8 bg-green-50 rounded-xl flex items-center justify-center text-[#11AB2F] shadow-inner">
-                <i className="fa-solid fa-folder-closed text-[12px]"></i>
+          <div className="flex items-center gap-2 mb-2">
+             <div className="w-7 h-7 bg-green-50 rounded-lg flex items-center justify-center text-[#11AB2F] shadow-inner">
+                <i className="fa-solid fa-folder-closed text-[10px]"></i>
              </div>
-             <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none">{month}</h3>
+             <h3 className="text-base font-black text-slate-800 tracking-tight leading-none">{month}</h3>
           </div>
           
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
             <div className="flex flex-col">
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sales</span>
-              <span className="text-[11px] font-bold text-slate-700">₹{formatCurrency(totals.sales)}</span>
+              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sales</span>
+              <span className="text-[10px] font-bold text-slate-700">₹{formatCurrency(totals.sales)}</span>
             </div>
-            <div className="flex flex-col border-l border-slate-100 pl-4">
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Expenses</span>
-              <span className="text-[11px] font-bold text-slate-700">₹{formatCurrency(totals.expenses)}</span>
+            <div className="flex flex-col border-l border-slate-100 pl-3">
+              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Expenses</span>
+              <span className="text-[10px] font-bold text-slate-700">₹{formatCurrency(totals.expenses)}</span>
             </div>
-            <div className="flex flex-col border-l border-slate-100 pl-4">
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Profit</span>
-              <span className={`text-xs font-black px-2 py-0.5 rounded-md ${isProfit ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
+            <div className="flex flex-col border-l border-slate-100 pl-3">
+              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Profit</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isProfit ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
                 ₹{formatCurrency(Math.abs(totals.profit))}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2 shrink-0 ml-4 relative z-10">
-          <div className="flex -space-x-2">
+        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-3 relative z-10">
+          <div className="flex -space-x-1.5">
             {[...Array(Math.min(uniqueCropCount, 2))].map((_, i) => (
               <div 
                 key={i} 
-                className="w-7 h-7 rounded-full bg-white border-2 border-slate-50 flex items-center justify-center text-[#11AB2F] shadow-sm"
+                className="w-6 h-6 rounded-full bg-white border-2 border-slate-50 flex items-center justify-center text-[#11AB2F] shadow-sm"
               >
-                <i className="fa-solid fa-leaf text-[8px]"></i>
+                <i className="fa-solid fa-leaf text-[7px]"></i>
               </div>
             ))}
             {uniqueCropCount > 2 && (
-              <div className="w-7 h-7 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-slate-400 text-[8px] font-bold">
+              <div className="w-6 h-6 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-slate-400 text-[7px] font-bold">
                 +{uniqueCropCount - 2}
               </div>
             )}
           </div>
-          <span className="text-[9px] font-black text-[#11AB2F] uppercase tracking-tighter bg-white px-2 py-0.5 rounded-lg border border-[#11AB2F]/10 shadow-sm">
+          <span className="text-[8px] font-black text-[#11AB2F] uppercase tracking-tighter bg-white px-1.5 py-0.5 rounded-lg border border-[#11AB2F]/10 shadow-sm">
             {uniqueCropCount} Crops
           </span>
         </div>
@@ -163,20 +161,20 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
 
     return (
       <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-right duration-300">
-        <div className="flex items-center gap-4 px-5 py-4 bg-white sticky top-0 z-50 border-b border-slate-50 shadow-sm">
-          <button onClick={() => setSelectedMonth(null)} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 active:scale-90 transition-all">
-            <i className="fa-solid fa-arrow-left text-slate-800"></i>
+        <div className="flex items-center gap-3 px-4 py-3 bg-white sticky top-0 z-50 border-b border-slate-50 shadow-sm">
+          <button onClick={() => setSelectedMonth(null)} className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 active:scale-90 transition-all">
+            <i className="fa-solid fa-arrow-left text-slate-800 text-sm"></i>
           </button>
           <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight leading-tight">{selectedMonth}</h2>
-            <p className="text-[10px] text-[#11AB2F] font-bold uppercase tracking-widest leading-none mt-1">Monthly Crop Records</p>
+            <h2 className="text-lg font-black text-slate-900 tracking-tight leading-tight">{selectedMonth}</h2>
+            <p className="text-[9px] text-[#11AB2F] font-bold uppercase tracking-widest leading-none mt-0.5">Monthly Crop Records</p>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar">
-          <div className="flex items-center justify-between px-1 mb-2">
-             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Crop Performance</h4>
-             <span className="text-[9px] font-black text-[#11AB2F] bg-green-50 px-2 py-1 rounded-md border border-green-100">{sortedCropGroups.length} Crops</span>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
+          <div className="flex items-center justify-between px-1 mb-1">
+             <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Crop Performance</h4>
+             <span className="text-[8px] font-black text-[#11AB2F] bg-green-50 px-1.5 py-0.5 rounded-md border border-green-100">{sortedCropGroups.length} Crops</span>
           </div>
           
           {sortedCropGroups.map(group => {
@@ -184,34 +182,34 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
             const isProfit = profit >= 0;
 
             return (
-              <div key={group.name} className="bg-slate-50/50 rounded-[28px] p-5 border border-slate-100 flex items-center justify-between transition-all group hover:bg-white hover:shadow-lg hover:shadow-slate-200/50">
+              <div key={group.name} className="bg-slate-50/50 rounded-[20px] p-4 border border-slate-100 flex items-center justify-between transition-all group hover:bg-white hover:shadow-md">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#11AB2F] shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                      <i className="fa-solid fa-leaf text-sm"></i>
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#11AB2F] shadow-sm border border-slate-100 group-hover:scale-105 transition-transform">
+                      <i className="fa-solid fa-leaf text-xs"></i>
                     </div>
                     <div>
-                      <h5 className="font-black text-slate-800 text-base leading-tight">{group.name}</h5>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{group.txCount} Records this month</span>
+                      <h5 className="font-black text-slate-800 text-sm leading-tight">{group.name}</h5>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{group.txCount} Records</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-4">
                     <div>
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Sales</p>
-                      <p className="text-xs font-bold text-green-600">₹{formatCurrency(group.sales)}</p>
+                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sales</p>
+                      <p className="text-[10px] font-bold text-green-600">₹{formatCurrency(group.sales)}</p>
                     </div>
-                    <div className="w-px h-6 bg-slate-200"></div>
+                    <div className="w-px h-5 bg-slate-200"></div>
                     <div>
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Expenses</p>
-                      <p className="text-xs font-bold text-red-500">₹{formatCurrency(group.expenses)}</p>
+                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Expenses</p>
+                      <p className="text-[10px] font-bold text-red-500">₹{formatCurrency(group.expenses)}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="text-right ml-4">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Profit</p>
-                  <div className={`px-3 py-1.5 rounded-2xl font-black text-sm inline-block shadow-sm ${isProfit ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                <div className="text-right ml-3">
+                  <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Profit</p>
+                  <div className={`px-2 py-1 rounded-xl font-black text-xs inline-block shadow-sm ${isProfit ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                     {isProfit ? '+' : '-'}₹{formatCurrency(Math.abs(profit))}
                   </div>
                 </div>
@@ -219,7 +217,7 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
             );
           })}
           
-          <div className="h-28" />
+          <div className="h-24" />
         </div>
       </div>
     );
@@ -227,32 +225,32 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
 
   return (
     <div className="bg-white min-h-screen animate-in slide-in-from-right duration-300">
-      <div className="flex items-center gap-4 px-5 py-6 sticky top-0 z-50 bg-white">
-        <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 active:scale-90 transition-all">
-          <i className="fa-solid fa-arrow-left text-slate-800"></i>
+      <div className="flex items-center gap-3 px-4 py-4 sticky top-0 z-50 bg-white">
+        <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 active:scale-90 transition-all">
+          <i className="fa-solid fa-arrow-left text-slate-800 text-sm"></i>
         </button>
         <div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none">Crop Revenue</h2>
-          <p className="text-[10px] text-[#11AB2F] font-bold uppercase tracking-widest mt-1">Monthly Folders</p>
+          <h2 className="text-lg font-black text-slate-900 tracking-tight leading-none">Crop Revenue</h2>
+          <p className="text-[9px] text-[#11AB2F] font-bold uppercase tracking-widest mt-0.5">Monthly Folders</p>
         </div>
       </div>
 
-      <div className="px-5">
+      <div className="px-4">
         {sortedMonths.length === 0 ? (
-          <div className="text-center py-24 bg-slate-50 rounded-[32px] border border-dashed border-slate-200">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-slate-200 shadow-sm">
-              <i className="fa-solid fa-money-bill-transfer text-3xl"></i>
+          <div className="text-center py-20 bg-slate-50 rounded-[24px] border border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 text-slate-200 shadow-sm">
+              <i className="fa-solid fa-money-bill-transfer text-2xl"></i>
             </div>
-            <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No transaction history yet</p>
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">No history yet</p>
           </div>
         ) : (
           <div className="space-y-1">
-            <div className="flex items-center justify-between px-1 mb-5">
+            <div className="flex items-center justify-between px-1 mb-4">
                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">All Records</span>
-                  <span className="text-lg font-black text-slate-900 leading-none tracking-tight">Financial Folders</span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">All Records</span>
+                  <span className="text-base font-black text-slate-900 leading-none tracking-tight">Financial Folders</span>
                </div>
-               <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+               <span className="text-[8px] font-black text-slate-400 uppercase bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-100">
                  {sortedMonths.length} MONTHS
                </span>
             </div>

@@ -1,7 +1,8 @@
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, get, child, update, remove } from "firebase/database";
-import { Crop, Earning, Note } from "../types";
+import { getDatabase, ref, set, get, child, update, remove, onValue, off } from "firebase/database";
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { Crop, Earning, Note, TrackEntry } from "../types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyALCuAEfJjgmxeip41Dji6HUEKIosi0Aik",
@@ -15,17 +16,20 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const storage = getStorage(app);
 
 // Global shared path
 const SHARED_ROOT = "farmbook_global_data";
 const CROPS_PATH = `${SHARED_ROOT}/crops`;
 const EARNINGS_PATH = `${SHARED_ROOT}/earnings`;
 const NOTES_PATH = `${SHARED_ROOT}/notes`;
+const TRACK_PATH = `${SHARED_ROOT}/track`;
+const PROFILE_PATH = `${SHARED_ROOT}/profile`;
 
 /**
  * Fetches the entire global state once for hydration
  */
-export const fetchFirebaseData = async (): Promise<{ crops: Crop[], earnings: Earning[], notes: Note[] } | null> => {
+export const fetchFirebaseData = async (): Promise<{ crops: Crop[], earnings: Earning[], notes: Note[], trackEntries: TrackEntry[] } | null> => {
   if (!navigator.onLine) return null;
 
   try {
@@ -36,10 +40,11 @@ export const fetchFirebaseData = async (): Promise<{ crops: Crop[], earnings: Ea
       return {
         crops: data.crops ? Object.values(data.crops) : [],
         earnings: data.earnings ? Object.values(data.earnings) : [],
-        notes: data.notes ? Object.values(data.notes) : []
+        notes: data.notes ? Object.values(data.notes) : [],
+        trackEntries: data.track ? Object.values(data.track) : []
       };
     }
-    return { crops: [], earnings: [], notes: [] };
+    return { crops: [], earnings: [], notes: [], trackEntries: [] };
   } catch (error) {
     console.error("Firebase Fetch Error:", error);
     return null;
@@ -121,5 +126,135 @@ export const deleteNoteFromFirebase = async (noteId: string) => {
     await remove(noteRef);
   } catch (error) {
     console.error("Firebase Delete Note Error:", error);
+  }
+};
+
+/**
+ * Uploads an image to Firebase Storage and returns the URL
+ */
+export const uploadTrackImage = async (file: File, cropId: string): Promise<string> => {
+  const fileName = `${Date.now()}_${file.name}`;
+  const storageReference = sRef(storage, `track_images/${cropId}/${fileName}`);
+  await uploadBytes(storageReference, file);
+  return getDownloadURL(storageReference);
+};
+
+/**
+ * Uploads an image to Cloudinary
+ */
+export const uploadToCloudinary = async (file: File): Promise<string> => {
+  const cloudName = (import.meta as any).env.VITE_CLOUDINARY_CLOUD_NAME || 'dtb1dmptk';
+  const uploadPreset = (import.meta as any).env.VITE_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+  try {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+    }
+
+    const data = await response.json();
+    return data.secure_url;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Upload timed out. Please check your connection.');
+    }
+    throw error;
+  }
+};
+
+/**
+ * Saves a track entry to Firebase
+ */
+export const saveTrackEntryToFirebase = async (entry: TrackEntry) => {
+  if (!navigator.onLine) return;
+  try {
+    const trackRef = ref(db, `${TRACK_PATH}/${entry.id}`);
+    await set(trackRef, entry);
+  } catch (error) {
+    console.error("Firebase Save Track Entry Error:", error);
+  }
+};
+
+/**
+ * Deletes a track entry and its associated image
+ */
+export const deleteTrackEntryFromFirebase = async (entry: TrackEntry) => {
+  if (!navigator.onLine) return;
+  try {
+    // Delete from DB
+    const trackRef = ref(db, `${TRACK_PATH}/${entry.id}`);
+    await remove(trackRef);
+
+    // Try to delete from Storage if it's a firebase URL
+    if (entry.imageUrl.includes('firebasestorage')) {
+      const imageRef = sRef(storage, entry.imageUrl);
+      await deleteObject(imageRef).catch(e => console.warn("Image delete failed:", e));
+    }
+  } catch (error) {
+    console.error("Firebase Delete Track Entry Error:", error);
+  }
+};
+
+/**
+ * Listens for real-time updates to track entries
+ */
+export const subscribeToTrackEntries = (callback: (entries: TrackEntry[]) => void) => {
+  const trackRef = ref(db, TRACK_PATH);
+  onValue(trackRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      callback(Object.values(data));
+    } else {
+      callback([]);
+    }
+  });
+
+  return () => off(trackRef);
+};
+
+/**
+ * Saves profile photo URL to Firebase
+ */
+export const saveProfilePhotoToFirebase = async (photoUrl: string) => {
+  if (!navigator.onLine) return;
+  try {
+    const profileRef = ref(db, PROFILE_PATH);
+    await set(profileRef, { photoUrl });
+  } catch (error) {
+    console.error("Firebase Save Profile Photo Error:", error);
+  }
+};
+
+/**
+ * Fetches profile photo URL from Firebase
+ */
+export const fetchProfilePhotoFromFirebase = async (): Promise<string | null> => {
+  if (!navigator.onLine) return null;
+  try {
+    const profileRef = ref(db, PROFILE_PATH);
+    const snapshot = await get(profileRef);
+    if (snapshot.exists()) {
+      return snapshot.val().photoUrl;
+    }
+    return null;
+  } catch (error) {
+    console.error("Firebase Fetch Profile Photo Error:", error);
+    return null;
   }
 };

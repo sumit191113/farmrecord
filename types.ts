@@ -35,6 +35,14 @@ export interface Note {
   date: string;
 }
 
+export interface TrackEntry {
+  id: string;
+  cropId: string;
+  imageUrl: string;
+  description?: string;
+  timestamp: string;
+}
+
 export interface Crop {
   id: string;
   name: string;
@@ -45,6 +53,10 @@ export interface Crop {
   expenses: Expense[];
   sales: Sale[];
   status: 'Active' | 'Harvested';
+}
+
+export interface UserProfile {
+  photoUrl: string;
 }
 
 export type NavItem = 'home' | 'manage' | 'calculator' | 'notepad';
@@ -64,4 +76,7 @@ export type AppView =
   | 'earnings'
   | 'reports'
   | 'crop-records'
-  | 'notepad';
+  | 'notepad'
+  | 'track'
+  | 'track-detail'
+  | 'settings';

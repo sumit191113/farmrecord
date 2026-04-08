@@ -1,6 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Crop, AppView, Expense, Sale } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface CropManagementProps {
   view: AppView;
@@ -35,6 +37,26 @@ const getTotalQuantity = (sales: Sale[]) => {
   
   const formattedTotal = Number.isInteger(total) ? total.toString() : total.toFixed(2);
   return `${formattedTotal}${unit ? ' ' + unit : ''}`;
+};
+
+const getTotalQuantityValue = (sales: Sale[]) => {
+  if (!sales || sales.length === 0) return 0;
+  let total = 0;
+  sales.forEach(sale => {
+    const qtyStr = sale.quantity || '';
+    const numMatch = qtyStr.match(/(\d+(\.\d+)?)/);
+    if (numMatch) {
+      let val = parseFloat(numMatch[1]);
+      const unit = qtyStr.toLowerCase();
+      if (unit.includes('qtl') || unit.includes('quintal')) {
+        val *= 100;
+      } else if (unit.includes('ton')) {
+        val *= 1000;
+      }
+      total += val;
+    }
+  });
+  return total;
 };
 
 const CropManagement: React.FC<CropManagementProps> = ({ 
@@ -90,6 +112,7 @@ const CropManagement: React.FC<CropManagementProps> = ({
 
   const [cropToDelete, setCropToDelete] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'expense' | 'sale' } | null>(null);
+  const [downloadConfirm, setDownloadConfirm] = useState<'Expenses' | 'Sales' | null>(null);
 
   const toggleCropExpansion = (id: string) => {
     setExpandedCrops(prev => ({ ...prev, [id]: !prev[id] }));
@@ -261,12 +284,68 @@ const CropManagement: React.FC<CropManagementProps> = ({
     setNewSale({ quantity: '', location: '', amount: '', date: new Date().toISOString().split('T')[0] });
   };
 
-  const renderHeader = (title: string, backView: AppView, backId?: string) => (
-    <div className="flex items-center gap-4 px-5 py-4 bg-white border-b border-slate-100 sticky top-0 z-50">
-      <button onClick={() => onNavigate(backView, backId)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 active:scale-90 transition-all">
-        <i className="fa-solid fa-arrow-left text-slate-800"></i>
-      </button>
-      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+  const downloadPDF = (type: 'Expenses' | 'Sales') => {
+    if (!activeCrop) return;
+    
+    const doc = new jsPDF();
+    const data = type === 'Expenses' ? (activeCrop.expenses || []) : (activeCrop.sales || []);
+    const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const tableData = sortedData.map((item, index) => [
+      index + 1,
+      new Date(item.date).toLocaleDateString('en-IN'),
+      type === 'Expenses' ? (item as Expense).name : (item as Sale).quantity + ( (item as Sale).location ? ` (${(item as Sale).location})` : '' ),
+      `Rs. ${formatCurrency(item.amount)}`
+    ]);
+
+    doc.setFontSize(18);
+    doc.text(`${activeCrop.name} - ${type} Report`, 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 14, 30);
+
+    autoTable(doc, {
+      startY: 35,
+      head: [['SR.NO', 'Date', `${type === 'Expenses' ? 'Expense' : 'Sales'} Name`, 'Amount']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [17, 171, 47], textColor: [255, 255, 255] },
+      styles: { fontSize: 10, cellPadding: 5 },
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 30 },
+        3: { cellWidth: 40, halign: 'right' }
+      }
+    });
+
+    const total = data.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const finalY = (doc as any).lastAutoTable.finalY || 40;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.text(`Total ${type}: Rs. ${formatCurrency(total)}`, 14, finalY + 10);
+
+    doc.save(`${activeCrop.name}_${type}_Report.pdf`);
+    setDownloadConfirm(null);
+  };
+
+  const renderHeader = (title: string, backView: AppView, backId?: string, onDownload?: () => void) => (
+    <div className="flex items-center justify-between px-5 py-4 bg-white border-b border-slate-100 sticky top-0 z-50">
+      <div className="flex items-center gap-4">
+        <button onClick={() => onNavigate(backView, backId)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 active:scale-90 transition-all">
+          <i className="fa-solid fa-arrow-left text-slate-800"></i>
+        </button>
+        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+      </div>
+      {onDownload && (
+        <button 
+          onClick={onDownload}
+          className="w-10 h-10 flex items-center justify-center bg-green-50 text-[#11AB2F] rounded-xl hover:bg-green-100 active:scale-90 transition-all shadow-sm border border-green-100"
+          title="Download PDF"
+        >
+          <i className="fa-solid fa-file-pdf text-lg"></i>
+        </button>
+      )}
     </div>
   );
 
@@ -394,12 +473,12 @@ const CropManagement: React.FC<CropManagementProps> = ({
     viewContent = (
       <div className="bg-slate-50 min-h-screen pb-20 animate-in slide-in-from-right duration-300">
         {renderHeader('Manage Expenses', 'dashboard')}
-        <div className="p-5 space-y-4">
+        <div className="p-4 space-y-3">
           {crops.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-[24px] shadow-sm border-2 border-[#11AB2F]">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300"><i className="fa-solid fa-seedling text-2xl"></i></div>
-              <p className="text-slate-500 font-medium">Add a crop first to track expenses</p>
-              <button onClick={() => setIsAddModalOpen?.(true)} className="mt-4 px-6 py-2 bg-[#11AB2F] text-white rounded-full text-sm font-bold active:scale-95 transition-all">Add New Crop</button>
+            <div className="text-center py-16 bg-white rounded-[24px] shadow-sm border-2 border-[#11AB2F]">
+              <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300"><i className="fa-solid fa-seedling text-xl"></i></div>
+              <p className="text-slate-500 text-sm font-bold">Add a crop first</p>
+              <button onClick={() => setIsAddModalOpen?.(true)} className="mt-3 px-5 py-2 bg-[#11AB2F] text-white rounded-full text-xs font-black active:scale-95 transition-all uppercase tracking-wider">Add New Crop</button>
             </div>
           ) : (
             crops.map(crop => {
@@ -407,28 +486,28 @@ const CropManagement: React.FC<CropManagementProps> = ({
               const totalExp = (crop.expenses || []).reduce((s, e) => s + (e.amount || 0), 0);
               const inline = inlineExpenses[crop.id] || { name: '', amount: '', date: new Date().toISOString().split('T')[0] };
               return (
-                <div key={crop.id} className="bg-gradient-to-br from-white to-green-50 rounded-[24px] border-2 border-[#11AB2F] shadow-lg shadow-green-900/10 overflow-hidden transition-all duration-300">
-                  <div onClick={() => toggleCropExpansion(crop.id)} className="p-5 flex items-center justify-between cursor-pointer hover:bg-[#11AB2F]/5 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-[#11AB2F]/10 rounded-xl flex items-center justify-center text-[#11AB2F] border border-[#11AB2F]/20"><i className="fa-solid fa-leaf text-xl"></i></div>
-                      <div><h3 className="font-bold text-slate-900">{crop.name}</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{crop.area} {crop.unit}</p></div>
+                <div key={crop.id} className="bg-white rounded-[20px] border border-slate-100 shadow-sm overflow-hidden transition-all duration-300">
+                  <div onClick={() => toggleCropExpansion(crop.id)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-[#11AB2F] border border-green-100/50"><i className="fa-solid fa-leaf text-sm"></i></div>
+                      <div><h3 className="font-black text-slate-800 text-sm leading-tight">{crop.name}</h3><p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{crop.area} {crop.unit}</p></div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right"><p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Total</p><p className="text-sm font-bold text-red-500">₹{formatCurrency(totalExp)}</p></div>
-                      <i className={`fa-solid fa-chevron-down text-slate-300 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}></i>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right"><p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">Total</p><p className="text-sm font-black text-red-500">₹{formatCurrency(totalExp)}</p></div>
+                      <i className={`fa-solid fa-chevron-down text-slate-300 text-[10px] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}></i>
                     </div>
                   </div>
                   {isExpanded && (
-                    <div className="px-5 pb-5 border-t border-[#11AB2F]/10 animate-in slide-in-from-top duration-300">
-                      <div className="mt-4 p-4 bg-white/50 rounded-[20px] border border-green-100 space-y-3 shadow-inner">
-                        <p className="text-[10px] font-bold text-[#11AB2F] uppercase tracking-widest">Add Expense</p>
-                        <div className="grid grid-cols-1 gap-3">
-                          <input value={inline.name} onChange={(e) => handleInlineExpenseChange(crop.id, 'name', e.target.value)} placeholder="Expense name (e.g. Fertilizer)" className="w-full px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
+                    <div className="px-4 pb-4 border-t border-slate-50 animate-in slide-in-from-top duration-300">
+                      <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2.5">
+                        <p className="text-[9px] font-black text-[#11AB2F] uppercase tracking-widest ml-1">Quick Add Expense</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input value={inline.name} onChange={(e) => handleInlineExpenseChange(crop.id, 'name', e.target.value)} placeholder="Expense name (e.g. Fertilizer)" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
                           <div className="flex gap-2">
-                            <input type="number" value={inline.amount} onChange={(e) => handleInlineExpenseChange(crop.id, 'amount', e.target.value)} placeholder="Amount (₹)" className="flex-1 px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
-                            <input type="date" value={inline.date} onChange={(e) => handleInlineExpenseChange(crop.id, 'date', e.target.value)} className="flex-1 px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
+                            <input type="number" value={inline.amount} onChange={(e) => handleInlineExpenseChange(crop.id, 'amount', e.target.value)} placeholder="Amount (₹)" className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
+                            <input type="date" value={inline.date} onChange={(e) => handleInlineExpenseChange(crop.id, 'date', e.target.value)} className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-[10px] focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
                           </div>
-                          <button onClick={() => saveInlineExpense(crop.id)} className="w-full py-3 bg-[#11AB2F] text-white rounded-xl font-bold text-sm shadow-md active:scale-[0.98] transition-all">Save Expense</button>
+                          <button onClick={() => saveInlineExpense(crop.id)} className="w-full py-2.5 bg-[#11AB2F] text-white rounded-lg font-black text-xs shadow-sm active:scale-[0.98] transition-all uppercase tracking-wider">Save Expense</button>
                         </div>
                       </div>
                     </div>
@@ -444,12 +523,12 @@ const CropManagement: React.FC<CropManagementProps> = ({
     viewContent = (
       <div className="bg-slate-50 min-h-screen pb-20 animate-in slide-in-from-right duration-300">
         {renderHeader('Manage Sales', 'dashboard')}
-        <div className="p-5 space-y-4">
+        <div className="p-4 space-y-3">
           {crops.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-[24px] shadow-sm border-2 border-[#11AB2F]">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300"><i className="fa-solid fa-seedling text-2xl"></i></div>
-              <p className="text-slate-500 font-medium">Add a crop first to track sales</p>
-              <button onClick={() => setIsAddModalOpen?.(true)} className="mt-4 px-6 py-2 bg-[#11AB2F] text-white rounded-full text-sm font-bold active:scale-95 transition-all">Add New Crop</button>
+            <div className="text-center py-16 bg-white rounded-[24px] shadow-sm border-2 border-[#11AB2F]">
+              <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300"><i className="fa-solid fa-seedling text-xl"></i></div>
+              <p className="text-slate-500 text-sm font-bold">Add a crop first</p>
+              <button onClick={() => setIsAddModalOpen?.(true)} className="mt-3 px-5 py-2 bg-[#11AB2F] text-white rounded-full text-xs font-black active:scale-95 transition-all uppercase tracking-wider">Add New Crop</button>
             </div>
           ) : (
             crops.map(crop => {
@@ -457,31 +536,31 @@ const CropManagement: React.FC<CropManagementProps> = ({
               const totalSale = (crop.sales || []).reduce((s, e) => s + (e.amount || 0), 0);
               const inline = inlineSales[crop.id] || { quantity: '', location: '', amount: '', date: new Date().toISOString().split('T')[0] };
               return (
-                <div key={crop.id} className="bg-gradient-to-br from-white to-green-50 rounded-[24px] border-2 border-[#11AB2F] shadow-lg shadow-green-900/10 overflow-hidden transition-all duration-300">
-                  <div onClick={() => toggleCropExpansion(crop.id)} className="p-5 flex items-center justify-between cursor-pointer hover:bg-[#11AB2F]/5 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-[#11AB2F]/10 rounded-xl flex items-center justify-center text-[#11AB2F] border border-[#11AB2F]/20"><i className="fa-solid fa-leaf text-xl"></i></div>
-                      <div><h3 className="font-bold text-slate-900">{crop.name}</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{crop.area} {crop.unit}</p></div>
+                <div key={crop.id} className="bg-white rounded-[20px] border border-slate-100 shadow-sm overflow-hidden transition-all duration-300">
+                  <div onClick={() => toggleCropExpansion(crop.id)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-[#11AB2F] border border-green-100/50"><i className="fa-solid fa-leaf text-sm"></i></div>
+                      <div><h3 className="font-black text-slate-800 text-sm leading-tight">{crop.name}</h3><p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{crop.area} {crop.unit}</p></div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right"><p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Sales</p><p className="text-sm font-bold text-green-600">₹{formatCurrency(totalSale)}</p></div>
-                      <i className={`fa-solid fa-chevron-down text-slate-300 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}></i>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right"><p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">Sales</p><p className="text-sm font-black text-green-600">₹{formatCurrency(totalSale)}</p></div>
+                      <i className={`fa-solid fa-chevron-down text-slate-300 text-[10px] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}></i>
                     </div>
                   </div>
                   {isExpanded && (
-                    <div className="px-5 pb-5 border-t border-[#11AB2F]/10 animate-in slide-in-from-top duration-300">
-                      <div className="mt-4 p-4 bg-white/50 rounded-[20px] border border-green-100 space-y-3 shadow-inner">
-                        <p className="text-[10px] font-bold text-[#11AB2F] uppercase tracking-widest">Add Sale Record</p>
-                        <div className="grid grid-cols-1 gap-3">
+                    <div className="px-4 pb-4 border-t border-slate-50 animate-in slide-in-from-top duration-300">
+                      <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2.5">
+                        <p className="text-[9px] font-black text-[#11AB2F] uppercase tracking-widest ml-1">Quick Add Sale</p>
+                        <div className="grid grid-cols-1 gap-2">
                           <div className="flex gap-2">
-                            <input value={inline.quantity} onChange={(e) => handleInlineSaleChange(crop.id, 'quantity', e.target.value)} placeholder="Quantity (e.g. 10 Qtl)" className="flex-1 px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
-                            <input value={inline.location} onChange={(e) => handleInlineSaleChange(crop.id, 'location', e.target.value)} placeholder="Market/Location" className="flex-1 px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
+                            <input value={inline.quantity} onChange={(e) => handleInlineSaleChange(crop.id, 'quantity', e.target.value)} placeholder="Qty (e.g. 10 Qtl)" className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
+                            <input value={inline.location} onChange={(e) => handleInlineSaleChange(crop.id, 'location', e.target.value)} placeholder="Market" className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
                           </div>
                           <div className="flex gap-2">
-                            <input type="number" value={inline.amount} onChange={(e) => handleInlineSaleChange(crop.id, 'amount', e.target.value)} placeholder="Total Amount (₹)" className="flex-1 px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
-                            <input type="date" value={inline.date} onChange={(e) => handleInlineSaleChange(crop.id, 'date', e.target.value)} className="flex-1 px-4 py-3 bg-white border border-[#11AB2F]/20 rounded-xl text-sm focus:ring-2 focus:ring-[#11AB2F] outline-none" />
+                            <input type="number" value={inline.amount} onChange={(e) => handleInlineSaleChange(crop.id, 'amount', e.target.value)} placeholder="Total (₹)" className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
+                            <input type="date" value={inline.date} onChange={(e) => handleInlineSaleChange(crop.id, 'date', e.target.value)} className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-[10px] focus:ring-1 focus:ring-[#11AB2F] outline-none font-bold" />
                           </div>
-                          <button onClick={() => saveInlineSale(crop.id)} className="w-full py-3 bg-[#11AB2F] text-white rounded-xl font-bold text-sm shadow-md active:scale-[0.98] transition-all">Save Sale Record</button>
+                          <button onClick={() => saveInlineSale(crop.id)} className="w-full py-2.5 bg-[#11AB2F] text-white rounded-lg font-black text-xs shadow-sm active:scale-[0.98] transition-all uppercase tracking-wider">Save Sale Record</button>
                         </div>
                       </div>
                     </div>
@@ -647,43 +726,58 @@ const CropManagement: React.FC<CropManagementProps> = ({
               </div>
               <i className="fa-solid fa-chevron-right text-[#11AB2F]/40"></i>
             </button>
+            <button onClick={() => onNavigate('track', activeCrop.id)} className="w-full bg-gradient-to-br from-white to-green-50 rounded-2xl p-5 flex items-center justify-between border-2 border-[#11AB2F]/30 shadow-md shadow-green-900/5 active:scale-[0.98] transition-all">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center border border-orange-100">
+                  <i className="fa-solid fa-chart-line"></i>
+                </div>
+                <div className="text-left">
+                  <h4 className="font-bold text-slate-800">Track Growth</h4>
+                  <p className="text-xs text-slate-400">Monitor crop progress</p>
+                </div>
+              </div>
+              <i className="fa-solid fa-chevron-right text-[#11AB2F]/40"></i>
+            </button>
           </div>
         </div>
       </div>
     );
   } else if (view === 'expenses' && activeCrop) {
     const sortedExpenses = [...(activeCrop.expenses || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const totalExp = sortedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    
     viewContent = (
       <div className="bg-slate-50 min-h-screen pb-32 animate-in slide-in-from-right duration-300">
-        {renderHeader('Expenses', 'crop-detail', activeCrop.id)}
-        <div className="p-5 space-y-4">
+        {renderHeader('Expenses', 'crop-detail', activeCrop.id, () => setDownloadConfirm('Expenses'))}
+        
+        <div className="p-4 space-y-4">
           {sortedExpenses.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                <i className="fa-solid fa-receipt text-2xl"></i>
+            <div className="text-center py-16 bg-white rounded-[24px] border border-slate-100 shadow-sm">
+              <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300">
+                <i className="fa-solid fa-receipt text-xl"></i>
               </div>
-              <p className="text-slate-400 text-sm font-medium">No expenses recorded yet.</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No expenses recorded</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {sortedExpenses.map((exp) => (
-                <div key={exp.id} className="bg-white rounded-[24px] p-4 flex items-center justify-between shadow-md shadow-slate-200/50 border border-slate-100 transition-all active:scale-[0.98]">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center border border-red-100 shadow-sm">
-                      <i className="fa-solid fa-receipt text-lg"></i>
+                <div key={exp.id} className="bg-white rounded-[20px] p-3 flex items-center justify-between shadow-sm border border-slate-50 transition-all active:scale-[0.98]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-50 text-red-500 rounded-lg flex items-center justify-center border border-red-100/50">
+                      <i className="fa-solid fa-receipt text-xs"></i>
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-800 text-base leading-tight">{exp.name}</h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{new Date(exp.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      <h4 className="font-bold text-slate-800 text-sm leading-tight">{exp.name}</h4>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{new Date(exp.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-lg font-black text-red-500">₹{formatCurrency(exp.amount || 0)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-base font-black text-red-500">₹{formatCurrency(exp.amount || 0)}</span>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: exp.id, type: 'expense' }); }}
-                      className="w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center active:scale-90 transition-all"
+                      className="w-7 h-7 rounded-full bg-red-50 text-red-400 flex items-center justify-center active:scale-90 transition-all"
                     >
-                      <i className="fa-solid fa-trash-can text-xs"></i>
+                      <i className="fa-solid fa-trash-can text-[10px]"></i>
                     </button>
                   </div>
                 </div>
@@ -691,47 +785,50 @@ const CropManagement: React.FC<CropManagementProps> = ({
             </div>
           )}
         </div>
-        <button onClick={() => setIsExpenseModalOpen(true)} className="fixed bottom-24 right-6 w-16 h-16 bg-red-500 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-all z-[70] border-[6px] border-white">
-          <i className="fa-solid fa-plus text-2xl"></i>
+        <button onClick={() => setIsExpenseModalOpen(true)} className="fixed bottom-24 right-6 w-14 h-14 bg-red-500 text-white rounded-full shadow-xl flex items-center justify-center active:scale-90 transition-all z-[70] border-4 border-white">
+          <i className="fa-solid fa-plus text-xl"></i>
         </button>
       </div>
     );
   } else if (view === 'sales' && activeCrop) {
     const sortedSales = [...(activeCrop.sales || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const totalSale = sortedSales.reduce((sum, s) => sum + (s.amount || 0), 0);
+    
     viewContent = (
       <div className="bg-slate-50 min-h-screen pb-32 animate-in slide-in-from-right duration-300">
-        {renderHeader('Sales', 'crop-detail', activeCrop.id)}
-        <div className="p-5 space-y-4">
+        {renderHeader('Sales', 'crop-detail', activeCrop.id, () => setDownloadConfirm('Sales'))}
+        
+        <div className="p-4 space-y-4">
           {sortedSales.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                <i className="fa-solid fa-cart-shopping text-2xl"></i>
+            <div className="text-center py-16 bg-white rounded-[24px] border border-slate-100 shadow-sm">
+              <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300">
+                <i className="fa-solid fa-cart-shopping text-xl"></i>
               </div>
-              <p className="text-slate-400 text-sm font-medium">No sales recorded yet.</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No sales recorded</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {sortedSales.map((sale) => (
-                <div key={sale.id} className="bg-white rounded-[24px] p-4 flex items-center justify-between shadow-md shadow-slate-200/50 border border-slate-100 transition-all active:scale-[0.98]">
-                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-green-50 text-green-500 rounded-2xl flex items-center justify-center border border-green-100 shadow-sm">
-                      <i className="fa-solid fa-cart-shopping text-lg"></i>
+                <div key={sale.id} className="bg-white rounded-[20px] p-3 flex items-center justify-between shadow-sm border border-slate-50 transition-all active:scale-[0.98]">
+                   <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-50 text-green-500 rounded-lg flex items-center justify-center border border-green-100/50">
+                      <i className="fa-solid fa-cart-shopping text-xs"></i>
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-800 text-base leading-tight">{sale.quantity}</h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                        {new Date(sale.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <h4 className="font-bold text-slate-800 text-sm leading-tight">{sale.quantity}</h4>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                        {new Date(sale.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                         {sale.location ? ` • ${sale.location}` : ''}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-lg font-black text-green-600">₹{formatCurrency(sale.amount || 0)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-base font-black text-green-600">₹{formatCurrency(sale.amount || 0)}</span>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: sale.id, type: 'sale' }); }}
-                      className="w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center active:scale-90 transition-all"
+                      className="w-7 h-7 rounded-full bg-red-50 text-red-400 flex items-center justify-center active:scale-90 transition-all"
                     >
-                      <i className="fa-solid fa-trash-can text-xs"></i>
+                      <i className="fa-solid fa-trash-can text-[10px]"></i>
                     </button>
                   </div>
                 </div>
@@ -741,15 +838,17 @@ const CropManagement: React.FC<CropManagementProps> = ({
         </div>
         <button 
           onClick={() => setIsSaleModalOpen(true)}
-          className="fixed bottom-24 right-6 w-16 h-16 bg-green-500 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-all z-[70] border-[6px] border-white"
+          className="fixed bottom-24 right-6 w-14 h-14 bg-green-500 text-white rounded-full shadow-xl flex items-center justify-center active:scale-90 transition-all z-[70] border-4 border-white"
         >
-          <i className="fa-solid fa-plus text-2xl"></i>
+          <i className="fa-solid fa-plus text-xl"></i>
         </button>
       </div>
     );
   } else if (view === 'profit-loss' && activeCrop) {
     const totalExp = (activeCrop.expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0);
     const totalSale = (activeCrop.sales || []).reduce((sum, s) => sum + (s.amount || 0), 0);
+    const totalQtyValue = getTotalQuantityValue(activeCrop.sales || []);
+    const avgRate = totalQtyValue > 0 ? totalSale / totalQtyValue : 0;
     const profit = totalSale - totalExp;
     const isProfit = profit >= 0;
     const ratio = (totalExp + totalSale === 0) ? 0 : (totalExp / (totalExp + totalSale)) * 100;
@@ -796,6 +895,23 @@ const CropManagement: React.FC<CropManagementProps> = ({
               <p className="text-sm font-bold text-blue-600">{getTotalQuantity(activeCrop.sales || [])}</p>
             </div>
           </div>
+
+          {/* Avg Rate Box */}
+          <div className="bg-white rounded-[28px] p-6 border-2 border-slate-100 shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-100">
+                <i className="fa-solid fa-scale-balanced text-xl"></i>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Avg Rate per kg</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Sales / Total Qty (kg)</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-black text-orange-600">₹{avgRate.toFixed(2)}</p>
+              <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tighter">per kg</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -807,6 +923,37 @@ const CropManagement: React.FC<CropManagementProps> = ({
       {addCropModalJSX}
       {addExpenseModalJSX}
       {addSaleModalJSX}
+
+      {/* Download Confirmation Modal */}
+      {downloadConfirm && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDownloadConfirm(null)}></div>
+          <div className="bg-white w-full max-w-xs rounded-[32px] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4 text-[#11AB2F]">
+              <i className="fa-solid fa-file-pdf text-2xl"></i>
+            </div>
+            <h4 className="text-xl font-bold text-center text-slate-900 mb-2">Download PDF?</h4>
+            <p className="text-sm text-slate-500 text-center leading-relaxed mb-6">
+              Do you want to download the <span className="font-bold text-slate-800">{downloadConfirm}</span> report for <span className="font-bold text-[#11AB2F]">{activeCrop?.name}</span>?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => downloadPDF(downloadConfirm)} 
+                className="w-full py-4 bg-[#11AB2F] text-white rounded-2xl font-bold text-sm shadow-lg shadow-green-100 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <i className="fa-solid fa-download text-xs"></i>
+                Download Now
+              </button>
+              <button 
+                onClick={() => setDownloadConfirm(null)} 
+                className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Item Delete Confirmation Modal */}
       {itemToDelete && (

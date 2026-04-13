@@ -12,7 +12,7 @@ const MainCards: React.FC<MainCardsProps> = ({ onNavigateToCrops, onNavigateToRe
       {/* My Crops Card */}
       <button 
         onClick={onNavigateToCrops}
-        className="w-full text-left bg-white border-[3px] border-[#11AB2F] rounded-[24px] p-5 flex items-center justify-between shadow-lg shadow-green-900/5 group transition-transform active:scale-[0.98] bg-gradient-to-br from-white to-green-50/50"
+        className="w-full text-left bg-white border-[3px] border-[#11AB2F] rounded-[24px] p-5 flex items-center justify-between shadow-[0_10px_25px_rgba(17,171,47,0.1)] hover:shadow-[0_15px_35px_rgba(17,171,47,0.15)] group transition-all active:scale-[0.98] bg-gradient-to-br from-white to-green-50/50"
       >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center border border-[#11AB2F]/10">
@@ -31,7 +31,7 @@ const MainCards: React.FC<MainCardsProps> = ({ onNavigateToCrops, onNavigateToRe
       {/* Crop Revenue Card - Now featuring the circular arrow icon */}
       <button 
         onClick={onNavigateToRecords}
-        className="w-full text-left bg-white border-[3px] border-[#11AB2F] rounded-[24px] p-5 flex items-center justify-between shadow-lg shadow-green-900/5 group transition-transform active:scale-[0.98] bg-gradient-to-br from-white to-green-50/50"
+        className="w-full text-left bg-white border-[3px] border-[#11AB2F] rounded-[24px] p-5 flex items-center justify-between shadow-[0_10px_25px_rgba(17,171,47,0.1)] hover:shadow-[0_15px_35px_rgba(17,171,47,0.15)] group transition-all active:scale-[0.98] bg-gradient-to-br from-white to-green-50/50"
       >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center border border-[#11AB2F]/10">

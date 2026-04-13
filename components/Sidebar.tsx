@@ -12,6 +12,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate }) => {
   const menuItems = [
     { icon: 'fa-house', label: 'Dashboard', view: 'dashboard' as AppView },
     { icon: 'fa-seedling', label: 'My Crops', view: 'my-crops' as AppView },
+    { icon: 'fa-wallet', label: 'Expenses', view: 'manage-expenses' as AppView },
+    { icon: 'fa-cart-shopping', label: 'Sales', view: 'manage-sales' as AppView },
     { icon: 'fa-camera', label: 'Track', view: 'track' as AppView },
     { icon: 'fa-money-bill-trend-up', label: 'Earnings', view: 'earnings' as AppView },
     { icon: 'fa-chart-line', label: 'Reports', view: 'reports' as AppView },

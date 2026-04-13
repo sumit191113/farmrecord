@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Crop, AppView, Expense, Sale } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { uploadToCloudinary } from '../services/firebaseService';
 
 interface CropManagementProps {
   view: AppView;
@@ -95,6 +96,8 @@ const CropManagement: React.FC<CropManagementProps> = ({
   // Custom Dropdown State
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCropId, setUploadingCropId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -105,6 +108,37 @@ const CropManagement: React.FC<CropManagementProps> = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleImageClick = (cropId: string) => {
+    setUploadingCropId(cropId);
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingCropId) return;
+
+    try {
+      const cropToUpdate = crops.find(c => c.id === uploadingCropId);
+      if (!cropToUpdate) return;
+
+      const imageUrl = await uploadToCloudinary(file);
+      const updatedCrop = { ...cropToUpdate, imageUrl };
+      
+      await onSurgicalSave(updatedCrop);
+      setCrops(prev => {
+        if (typeof prev === 'function') {
+          return (prev as any)(crops).map((c: Crop) => c.id === uploadingCropId ? updatedCrop : c);
+        }
+        return prev.map(c => c.id === uploadingCropId ? updatedCrop : c);
+      });
+    } catch (error) {
+      console.error('Error uploading crop image:', error);
+    } finally {
+      setUploadingCropId(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const [expandedCrops, setExpandedCrops] = useState<Record<string, boolean>>({});
   const [inlineExpenses, setInlineExpenses] = useState<Record<string, { name: string; amount: string; date: string }>>({});
@@ -592,49 +626,114 @@ const CropManagement: React.FC<CropManagementProps> = ({
               const totalQty = getTotalQuantity(crop.sales || []);
               const profit = totalSale - totalExp;
               const isProfit = profit >= 0;
+              
               return (
-                <div key={crop.id} onClick={() => onNavigate('crop-detail', crop.id)} className="w-full bg-gradient-to-br from-white to-green-50 rounded-[20px] p-4 border-2 border-[#11AB2F] shadow-lg shadow-green-900/10 hover:shadow-xl hover:shadow-green-900/20 transition-all active:scale-[0.99] text-left relative cursor-pointer overflow-hidden flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#11AB2F] shrink-0 border border-[#11AB2F]/20 shadow-sm">
-                        <i className="fa-solid fa-leaf text-lg"></i>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold text-slate-900 truncate leading-tight">{crop.name}</h3>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider ${crop.status === 'Active' ? 'bg-[#11AB2F]/10 text-[#11AB2F]' : 'bg-slate-100 text-slate-600'}`}>{crop.status}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{crop.area} {crop.unit === 'Meter Square' ? 'm²' : crop.unit}</span>
+                <div 
+                  key={crop.id} 
+                  className="w-full bg-white rounded-[28px] border-2 border-[#11AB2F] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(17,171,47,0.1)] transition-all duration-300 overflow-hidden flex flex-col"
+                >
+                  {/* Card Header */}
+                  <div className="p-5 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white">
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleImageClick(crop.id); }}
+                        className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-[#11AB2F] border-2 border-[#11AB2F]/20 shadow-sm overflow-hidden relative group/img"
+                        disabled={uploadingCropId === crop.id}
+                      >
+                        {uploadingCropId === crop.id ? (
+                          <div className="animate-spin w-5 h-5 border-2 border-[#11AB2F] border-t-transparent rounded-full"></div>
+                        ) : crop.imageUrl ? (
+                          <>
+                            <img src={crop.imageUrl} alt={crop.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                              <i className="fa-solid fa-camera text-white text-xs"></i>
+                            </div>
+                          </>
+                        ) : (
+                          <i className="fa-solid fa-leaf text-xl"></i>
+                        )}
+                      </button>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 leading-tight">{crop.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${crop.status === 'Active' ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                            {crop.status}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {crop.type}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
-                      <button onClick={(e) => handleEditCrop(e, crop)} className="w-7 h-7 rounded-lg bg-white/80 text-slate-400 hover:text-[#11AB2F] hover:bg-white flex items-center justify-center transition-all active:scale-90 shadow-sm border border-slate-100">
-                        <i className="fa-solid fa-pen-to-square text-[10px]"></i>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={(e) => handleEditCrop(e, crop)} 
+                        className="w-8 h-8 rounded-xl bg-slate-50 text-slate-400 hover:text-[#11AB2F] hover:bg-green-50 flex items-center justify-center transition-all active:scale-90 border border-slate-100"
+                      >
+                        <i className="fa-solid fa-pen-to-square text-xs"></i>
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setCropToDelete(crop.id); }} className="w-7 h-7 rounded-lg bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 flex items-center justify-center transition-all active:scale-90 shadow-sm border border-red-100">
-                        <i className="fa-solid fa-trash-can text-[10px]"></i>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setCropToDelete(crop.id); }} 
+                        className="w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 flex items-center justify-center transition-all active:scale-90 border border-red-100"
+                      >
+                        <i className="fa-solid fa-trash-can text-xs"></i>
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-[#11AB2F]/10">
-                    <div className="flex gap-4">
-                      <div className="flex flex-col">
-                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">Sales</span>
-                        <span className="text-xs font-bold text-green-600">₹{formatCurrency(totalSale)}</span>
+
+                  {/* Card Body - Structured Data */}
+                  <div className="px-5 py-4 grid grid-cols-2 gap-4 border-t border-[#11AB2F]/10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
+                        <i className="fa-solid fa-ruler-combined text-xs"></i>
                       </div>
-                      <div className="flex flex-col border-l border-[#11AB2F]/10 pl-4">
-                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">Exp.</span>
-                        <span className="text-xs font-bold text-red-500">₹{formatCurrency(totalExp)}</span>
-                      </div>
-                      <div className="flex flex-col border-l border-[#11AB2F]/10 pl-4">
-                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">Qty</span>
-                        <span className="text-xs font-bold text-blue-600">{totalQty}</span>
+                      <div>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Area</p>
+                        <p className="text-xs font-black text-slate-700">{crop.area} {crop.unit === 'Meter Square' ? 'm²' : crop.unit}</p>
                       </div>
                     </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg shadow-sm border ${isProfit ? 'bg-white text-green-700 border-[#11AB2F]/20' : 'bg-white text-red-700 border-red-100'}`}>
-                      <i className={`fa-solid ${isProfit ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} text-[8px]`}></i>
-                      <span className="text-[10px] font-black tracking-tight">₹{formatCurrency(Math.abs(profit))}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
+                        <i className="fa-solid fa-calendar-day text-xs"></i>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Sowing Date</p>
+                        <p className="text-xs font-black text-slate-700">{new Date(crop.sowingDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Financial Metrics */}
+                  <div className="px-5 py-4 bg-slate-50/50 grid grid-cols-3 gap-2 border-t border-[#11AB2F]/10">
+                    <div className="text-center">
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter mb-1">Total Sales</p>
+                      <p className="text-xs font-black text-green-600">₹{formatCurrency(totalSale)}</p>
+                    </div>
+                    <div className="text-center border-l border-[#11AB2F]/10">
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter mb-1">Total Exp.</p>
+                      <p className="text-xs font-black text-red-500">₹{formatCurrency(totalExp)}</p>
+                    </div>
+                    <div className="text-center border-l border-[#11AB2F]/10">
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter mb-1">Yield Qty</p>
+                      <p className="text-xs font-black text-blue-600">{totalQty}</p>
+                    </div>
+                  </div>
+
+                  {/* Card Footer - Profit & Explore */}
+                  <div className="p-4 flex items-center justify-between gap-3 border-t border-[#11AB2F]/10 mt-auto">
+                    <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border ${isProfit ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                      <i className={`fa-solid ${isProfit ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} text-[10px]`}></i>
+                      <span className="text-xs font-black tracking-tight">
+                        {isProfit ? 'Profit' : 'Loss'}: ₹{formatCurrency(Math.abs(profit))}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => onNavigate('crop-detail', crop.id)}
+                      className="flex-1 py-2.5 bg-[#11AB2F] text-white rounded-2xl font-black text-xs shadow-md shadow-green-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                    >
+                      Explore
+                      <i className="fa-solid fa-arrow-right text-[10px]"></i>
+                    </button>
                   </div>
                 </div>
               );
@@ -919,6 +1018,15 @@ const CropManagement: React.FC<CropManagementProps> = ({
 
   return (
     <div className="contents">
+      {/* Hidden File Input for Crop Images */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept="image/*" 
+        onChange={handleImageChange}
+      />
+
       {viewContent}
       {addCropModalJSX}
       {addExpenseModalJSX}

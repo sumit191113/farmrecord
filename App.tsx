@@ -301,8 +301,8 @@ const App: React.FC = () => {
           <div className="px-5 pt-4 space-y-8 animate-in fade-in duration-500">
             <SummaryBox data={summaryData} onExportData={handleExportData} />
             <QuickActions onAction={(action) => {
-              if (action === 'Expense') handleNavigate('manage-expenses');
-              if (action === 'Sale') handleNavigate('manage-sales');
+              if (action === 'Settings') handleNavigate('settings');
+              if (action === 'Track') handleNavigate('track');
               if (action === 'Earning') handleNavigate('earnings');
               if (action === 'Revenue') handleNavigate('reports');
             }} />

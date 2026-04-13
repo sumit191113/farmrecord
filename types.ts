@@ -53,6 +53,7 @@ export interface Crop {
   expenses: Expense[];
   sales: Sale[];
   status: 'Active' | 'Harvested';
+  imageUrl?: string;
 }
 
 export interface UserProfile {

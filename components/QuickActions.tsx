@@ -25,8 +25,8 @@ interface QuickActionsProps {
 
 const QuickActions: React.FC<QuickActionsProps> = ({ onAction }) => {
   const actions = [
-    { icon: 'fa-solid fa-wallet', label: 'Expense' },
-    { icon: 'fa-solid fa-cart-shopping', label: 'Sale' },
+    { icon: 'fa-solid fa-gear', label: 'Settings' },
+    { icon: 'fa-solid fa-camera', label: 'Track' },
     { icon: 'fa-solid fa-arrow-trend-up', label: 'Earning' },
     { icon: 'fa-solid fa-money-bill-wave', label: 'Revenue' },
   ];

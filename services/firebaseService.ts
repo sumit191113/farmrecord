@@ -5,13 +5,14 @@ import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } fr
 import { Crop, Earning, Note, TrackEntry } from "../types";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyALCuAEfJjgmxeip41Dji6HUEKIosi0Aik",
-  authDomain: "milkrecordapp.firebaseapp.com",
-  databaseURL: "https://milkrecordapp-default-rtdb.firebaseio.com",
-  projectId: "milkrecordapp",
-  storageBucket: "milkrecordapp.firebasestorage.app",
-  messagingSenderId: "797212369388",
-  appId: "1:797212369388:web:5e082b93ad9e23bbf3a0c9"
+  apiKey: "AIzaSyASGqIsLTBNm5G6_dQg4SUFwduSq08jiBA",
+  authDomain: "farm-book-6bf74.firebaseapp.com",
+  databaseURL: "https://farm-book-6bf74-default-rtdb.firebaseio.com",
+  projectId: "farm-book-6bf74",
+  storageBucket: "farm-book-6bf74.firebasestorage.app",
+  messagingSenderId: "927297176621",
+  appId: "1:927297176621:web:0f9c0ddc1ae6ee2d7124a4",
+  measurementId: "G-S0HZTKNHEL"
 };
 
 const app = initializeApp(firebaseConfig);

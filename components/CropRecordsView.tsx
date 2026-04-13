@@ -84,54 +84,80 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
     return (
       <div 
         key={month}
-        onClick={() => setSelectedMonth(month)}
-        className="bg-white rounded-[20px] p-3 shadow-sm border border-slate-100 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer mb-2.5 relative overflow-hidden group"
+        className="w-full bg-white rounded-[28px] border-2 border-[#11AB2F] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(17,171,47,0.1)] transition-all duration-300 overflow-hidden flex flex-col mb-5"
       >
-        <div className="flex-1 relative z-10">
-          <div className="flex items-center gap-2 mb-2">
-             <div className="w-7 h-7 bg-green-50 rounded-lg flex items-center justify-center text-[#11AB2F] shadow-inner">
-                <i className="fa-solid fa-folder-closed text-[10px]"></i>
-             </div>
-             <h3 className="text-base font-black text-slate-800 tracking-tight leading-none">{month}</h3>
-          </div>
-          
+        {/* Card Header */}
+        <div className="p-5 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white">
           <div className="flex items-center gap-4">
-            <div className="flex flex-col">
-              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sales</span>
-              <span className="text-[10px] font-bold text-slate-700">₹{formatCurrency(totals.sales)}</span>
+            <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-[#11AB2F] border-2 border-[#11AB2F]/20 shadow-sm">
+              <i className="fa-solid fa-folder-open text-xl"></i>
             </div>
-            <div className="flex flex-col border-l border-slate-100 pl-3">
-              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Expenses</span>
-              <span className="text-[10px] font-bold text-slate-700">₹{formatCurrency(totals.expenses)}</span>
+            <div>
+              <h3 className="text-lg font-black text-slate-900 leading-tight">{month}</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-[#11AB2F] text-white">
+                  Monthly Report
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  {monthTxs.length} Transactions
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col border-l border-slate-100 pl-3">
-              <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Profit</span>
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isProfit ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                ₹{formatCurrency(Math.abs(totals.profit))}
-              </span>
+          </div>
+          <div className="flex flex-col items-end">
+            <div className="flex -space-x-2 mb-1">
+              {[...Array(Math.min(uniqueCropCount, 3))].map((_, i) => (
+                <div 
+                  key={i} 
+                  className="w-7 h-7 rounded-full bg-white border-2 border-[#11AB2F]/20 flex items-center justify-center text-[#11AB2F] shadow-sm"
+                >
+                  <i className="fa-solid fa-leaf text-[8px]"></i>
+                </div>
+              ))}
+            </div>
+            <span className="text-[9px] font-black text-[#11AB2F] uppercase tracking-tighter">
+              {uniqueCropCount} Crops Tracked
+            </span>
+          </div>
+        </div>
+
+        {/* Card Body - Structured Data */}
+        <div className="px-5 py-4 grid grid-cols-2 gap-4 border-t border-[#11AB2F]/10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
+              <i className="fa-solid fa-arrow-up-from-bracket text-xs"></i>
+            </div>
+            <div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Total Sales</p>
+              <p className="text-xs font-black text-green-600">₹{formatCurrency(totals.sales)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
+              <i className="fa-solid fa-arrow-down-wide-short text-xs"></i>
+            </div>
+            <div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Total Expenses</p>
+              <p className="text-xs font-black text-red-500">₹{formatCurrency(totals.expenses)}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-3 relative z-10">
-          <div className="flex -space-x-1.5">
-            {[...Array(Math.min(uniqueCropCount, 2))].map((_, i) => (
-              <div 
-                key={i} 
-                className="w-6 h-6 rounded-full bg-white border-2 border-slate-50 flex items-center justify-center text-[#11AB2F] shadow-sm"
-              >
-                <i className="fa-solid fa-leaf text-[7px]"></i>
-              </div>
-            ))}
-            {uniqueCropCount > 2 && (
-              <div className="w-6 h-6 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-slate-400 text-[7px] font-bold">
-                +{uniqueCropCount - 2}
-              </div>
-            )}
+        {/* Card Footer - Profit & Explore */}
+        <div className="p-4 flex items-center justify-between gap-3 border-t border-[#11AB2F]/10 bg-slate-50/30">
+          <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border ${isProfit ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+            <i className={`fa-solid ${isProfit ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} text-[10px]`}></i>
+            <span className="text-xs font-black tracking-tight">
+              {isProfit ? 'Net Profit' : 'Net Loss'}: ₹{formatCurrency(Math.abs(totals.profit))}
+            </span>
           </div>
-          <span className="text-[8px] font-black text-[#11AB2F] uppercase tracking-tighter bg-white px-1.5 py-0.5 rounded-lg border border-[#11AB2F]/10 shadow-sm">
-            {uniqueCropCount} Crops
-          </span>
+          <button 
+            onClick={() => setSelectedMonth(month)}
+            className="flex-1 py-2.5 bg-[#11AB2F] text-white rounded-2xl font-black text-xs shadow-md shadow-green-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+          >
+            Explore
+            <i className="fa-solid fa-arrow-right text-[10px]"></i>
+          </button>
         </div>
       </div>
     );
@@ -182,34 +208,37 @@ const CropRecordsView: React.FC<CropRecordsViewProps> = ({ crops, onBack }) => {
             const isProfit = profit >= 0;
 
             return (
-              <div key={group.name} className="bg-slate-50/50 rounded-[20px] p-4 border border-slate-100 flex items-center justify-between transition-all group hover:bg-white hover:shadow-md">
+              <div 
+                key={group.name} 
+                className="bg-white rounded-[24px] p-4 border-2 border-[#11AB2F]/20 shadow-sm hover:shadow-md hover:border-[#11AB2F] transition-all group flex items-center justify-between"
+              >
                 <div className="flex-1">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#11AB2F] shadow-sm border border-slate-100 group-hover:scale-105 transition-transform">
-                      <i className="fa-solid fa-leaf text-xs"></i>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#11AB2F] shadow-sm border border-[#11AB2F]/10 group-hover:scale-105 transition-transform">
+                      <i className="fa-solid fa-leaf text-base"></i>
                     </div>
                     <div>
                       <h5 className="font-black text-slate-800 text-sm leading-tight">{group.name}</h5>
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{group.txCount} Records</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{group.txCount} Records</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-5">
                     <div>
-                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sales</p>
-                      <p className="text-[10px] font-bold text-green-600">₹{formatCurrency(group.sales)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sales</p>
+                      <p className="text-xs font-black text-green-600">₹{formatCurrency(group.sales)}</p>
                     </div>
-                    <div className="w-px h-5 bg-slate-200"></div>
+                    <div className="w-px h-6 bg-slate-200"></div>
                     <div>
-                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Expenses</p>
-                      <p className="text-[10px] font-bold text-red-500">₹{formatCurrency(group.expenses)}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Expenses</p>
+                      <p className="text-xs font-black text-red-500">₹{formatCurrency(group.expenses)}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="text-right ml-3">
-                  <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Profit</p>
-                  <div className={`px-2 py-1 rounded-xl font-black text-xs inline-block shadow-sm ${isProfit ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Result</p>
+                  <div className={`px-3 py-1.5 rounded-xl font-black text-xs inline-block shadow-sm border ${isProfit ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                     {isProfit ? '+' : '-'}₹{formatCurrency(Math.abs(profit))}
                   </div>
                 </div>

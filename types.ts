@@ -40,6 +40,7 @@ export interface TrackEntry {
   cropId: string;
   imageUrl: string;
   description?: string;
+  category: 'Plant' | 'Farm' | 'Disease' | 'Other';
   timestamp: string;
 }
 

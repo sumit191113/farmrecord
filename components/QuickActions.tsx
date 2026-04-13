@@ -8,7 +8,7 @@ interface ActionItemProps {
 
 const ActionItem: React.FC<ActionItemProps> = ({ icon, label, onClick }) => (
   <button onClick={onClick} className="flex flex-col items-center group w-1/4 focus:outline-none">
-    <div className="w-16 h-16 bg-white border border-slate-100 rounded-2xl shadow-sm flex items-center justify-center mb-2 transition-all group-hover:shadow-md group-active:scale-90 group-active:bg-slate-50">
+    <div className="w-16 h-16 bg-white border border-slate-800/20 rounded-2xl shadow-sm flex items-center justify-center mb-2 transition-all group-hover:shadow-md group-active:scale-90 group-active:bg-slate-50">
       <div className="w-10 h-10 rounded-full border-2 border-[#11AB2F]/20 flex items-center justify-center">
         <i className={`${icon} text-lg text-[#11AB2F]`}></i>
       </div>

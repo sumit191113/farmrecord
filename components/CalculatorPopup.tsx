@@ -107,6 +107,15 @@ const CalculatorPopup: React.FC<CalculatorPopupProps> = ({ onClose }) => {
     setDisplay(String(val / 100));
   };
 
+  const handleBackspace = () => {
+    if (shouldResetDisplay) return;
+    if (display.length > 1) {
+      setDisplay(display.slice(0, -1));
+    } else {
+      setDisplay('0');
+    }
+  };
+
   const Button = ({ children, onClick, className = "", variant = "number" }: any) => {
     let baseStyle = "h-9 rounded-lg font-bold text-sm transition-all active:scale-90 flex items-center justify-center shadow-sm select-none";
     let variantStyle = "";
@@ -170,7 +179,10 @@ const CalculatorPopup: React.FC<CalculatorPopupProps> = ({ onClose }) => {
 
         {/* Keypad Grid */}
         <div className="p-2.5 grid grid-cols-4 gap-1.5 bg-slate-50/50">
-          <Button onClick={handleClear} variant="action" className="col-span-2 h-9 text-xs">AC</Button>
+          <Button onClick={handleClear} variant="action" className="h-9 text-xs">AC</Button>
+          <Button onClick={handleBackspace} variant="action" className="h-9">
+            <i className="fa-solid fa-delete-left text-xs"></i>
+          </Button>
           <Button onClick={handlePercentage} variant="action" className="h-9">%</Button>
           <Button onClick={() => handleOperator('÷')} variant="operator" className="h-9">÷</Button>
 

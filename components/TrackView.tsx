@@ -25,7 +25,10 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState<'Plant' | 'Farm' | 'Disease' | 'Other'>('Plant');
+  const [activeFilter, setActiveFilter] = useState<'All' | 'Plant' | 'Farm' | 'Disease' | 'Other'>('All');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -33,7 +36,10 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const activeCrop = crops.find(c => c.id === selectedCropId);
-  const activeEntries = trackEntries.filter(e => e.cropId === selectedCropId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const activeEntries = trackEntries
+    .filter(e => e.cropId === selectedCropId)
+    .filter(e => activeFilter === 'All' || e.category === activeFilter)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const [itemToDelete, setItemToDelete] = useState<TrackEntry | null>(null);
 
@@ -118,15 +124,29 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
 
     setUploading(true);
     setUploadError(false);
+    setUploadProgress(0);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + 5;
+      });
+    }, 100);
+
     try {
       const compressedFile = await compressImage(selectedFile);
       const imageUrl = await uploadToCloudinary(compressedFile);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
       const newEntry: TrackEntry = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         cropId: selectedCropId,
         imageUrl,
         description,
+        category,
         timestamp: new Date(selectedDate).toISOString()
       };
       
@@ -144,11 +164,13 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
       setUploadError(true);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
   const resetForm = () => {
     setDescription('');
+    setCategory('Plant');
     setSelectedDate(new Date().toISOString().split('T')[0]);
     setSelectedFile(null);
     if (previewUrl && previewUrl.startsWith('blob:')) {
@@ -215,9 +237,32 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
 
   return (
     <div className="bg-slate-50 min-h-screen pb-32 animate-in slide-in-from-right duration-300">
-      {renderHeader(activeCrop?.name || 'Tracking', () => setSelectedCropId(null))}
+      {renderHeader(activeCrop?.name || 'Tracking', () => {
+        if (initialCropId) {
+          onNavigate('crop-detail', initialCropId);
+        } else {
+          setSelectedCropId(null);
+        }
+      })}
       
       <div className="p-5">
+        {/* Category Filters */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 mb-2">
+          {['All', 'Plant', 'Farm', 'Disease', 'Other'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setActiveFilter(f as any)}
+              className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${
+                activeFilter === f 
+                  ? 'bg-[#11AB2F] border-[#11AB2F] text-white shadow-lg shadow-green-100' 
+                  : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+
         {activeEntries.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-200">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
@@ -233,41 +278,63 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
                 key={entry.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/50 border border-slate-100 group"
+                className="bg-white rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/50 border-2 border-slate-800/10 group relative"
                 onClick={() => setSelectedEntry(entry)}
               >
                 <div className="relative aspect-video overflow-hidden">
                   <img 
                     src={entry.imageUrl} 
                     alt={entry.description} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     referrerPolicy="no-referrer"
                     loading="lazy"
                   />
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+                  
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <div className={`px-3 py-1.5 rounded-full backdrop-blur-md border border-white/20 shadow-lg flex items-center gap-1.5 ${
+                      entry.category === 'Plant' ? 'bg-green-500/80' :
+                      entry.category === 'Farm' ? 'bg-blue-500/80' :
+                      entry.category === 'Disease' ? 'bg-red-500/80' : 'bg-slate-500/80'
+                    }`}>
+                      <i className={`fa-solid text-[8px] text-white ${
+                        entry.category === 'Plant' ? 'fa-leaf' :
+                        entry.category === 'Farm' ? 'fa-tractor' :
+                        entry.category === 'Disease' ? 'fa-bug' : 'fa-camera'
+                      }`}></i>
+                      <span className="text-[9px] font-black text-white uppercase tracking-widest">{entry.category}</span>
+                    </div>
+                  </div>
+
+                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-white/50">
                     <p className="text-[10px] font-black text-slate-800 uppercase tracking-wider">
                       {new Date(entry.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                     </p>
                   </div>
                 </div>
-                <div className="p-5">
+                <div className="p-5 relative">
                   {entry.description && (
-                    <p className="text-slate-600 text-sm font-medium leading-relaxed mb-3 line-clamp-2">
+                    <p className="text-slate-700 text-sm font-bold leading-relaxed mb-4 line-clamp-2">
                       {entry.description}
                     </p>
                   )}
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                      {new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
+                        <i className="fa-regular fa-clock text-[10px]"></i>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        {new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         setItemToDelete(entry);
                       }}
-                      className="text-red-400 hover:text-red-500 p-2 active:scale-90 transition-all"
+                      className="w-9 h-9 rounded-full bg-red-50 text-red-400 flex items-center justify-center active:scale-90 transition-all hover:bg-red-500 hover:text-white"
                     >
-                      <i className="fa-solid fa-trash-can"></i>
+                      <i className="fa-solid fa-trash-can text-xs"></i>
                     </button>
                   </div>
                 </div>
@@ -314,7 +381,34 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
 
               <h3 className="text-xl font-black text-slate-800 mb-1">Track Growth</h3>
               <p className="text-slate-400 text-xs font-medium mb-5">Capture a photo to track your crop's progress.</p>
-                           <div className="space-y-4">
+              
+              <div className="space-y-4">
+                {/* Category Selection */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Category</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 'Plant', icon: 'fa-leaf', color: 'text-green-500', bg: 'bg-green-50' },
+                      { id: 'Farm', icon: 'fa-tractor', color: 'text-blue-500', bg: 'bg-blue-50' },
+                      { id: 'Disease', icon: 'fa-bug', color: 'text-red-500', bg: 'bg-red-50' },
+                      { id: 'Other', icon: 'fa-camera', color: 'text-slate-500', bg: 'bg-slate-50' }
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategory(cat.id as any)}
+                        className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all border-2 ${
+                          category === cat.id 
+                            ? `border-slate-800 bg-slate-800 text-white shadow-lg` 
+                            : `border-slate-100 bg-white text-slate-400 hover:border-slate-200`
+                        }`}
+                      >
+                        <i className={`fa-solid ${cat.icon} text-sm mb-1.5 ${category === cat.id ? 'text-white' : cat.color}`}></i>
+                        <span className="text-[8px] font-black uppercase tracking-tighter">{cat.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Date Selection */}
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Growth Date</label>
@@ -331,55 +425,66 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
                   </div>
                 </div>
 
-                {/* Image Selection */}
-                <div className="space-y-1.5">
+                {/* Image Selection & Progress */}
+                <div className="space-y-3">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Crop Photo</label>
-                  <div 
-                    className={`w-full aspect-video bg-slate-50 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all overflow-hidden relative ${uploading ? 'opacity-50 border-slate-200' : 'border-slate-200'}`}
-                  >
-                    {previewUrl ? (
-                      <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center p-4 text-center">
-                        <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-2">
-                          <i className="fa-solid fa-image text-xl text-slate-300"></i>
+                  
+                  {!selectedFile ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="flex items-center justify-center gap-2 bg-slate-50 border-2 border-slate-100 hover:border-slate-200 text-slate-700 py-4 rounded-2xl font-bold text-xs transition-all active:scale-95"
+                      >
+                        <i className="fa-solid fa-camera text-[#11AB2F]"></i>
+                        Take Photo
+                      </button>
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center justify-center gap-2 bg-slate-50 border-2 border-slate-100 hover:border-slate-200 text-slate-700 py-4 rounded-2xl font-bold text-xs transition-all active:scale-95"
+                      >
+                        <i className="fa-solid fa-images text-[#11AB2F]"></i>
+                        Gallery
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-50 text-[#11AB2F] rounded-xl flex items-center justify-center">
+                            <i className="fa-solid fa-image"></i>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight truncate max-w-[150px]">
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Ready to upload</p>
+                          </div>
                         </div>
-                        <p className="text-xs font-bold text-slate-500">No image selected</p>
+                        <button 
+                          onClick={() => setSelectedFile(null)}
+                          className="w-8 h-8 bg-white text-red-400 rounded-full flex items-center justify-center shadow-sm active:scale-90"
+                        >
+                          <i className="fa-solid fa-xmark text-xs"></i>
+                        </button>
                       </div>
-                    )}
-                    
-                    {uploading && (
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                        <i className="fa-solid fa-circle-notch animate-spin text-2xl text-[#11AB2F] mb-2"></i>
-                        <p className="text-xs font-bold text-[#11AB2F]">Uploading...</p>
-                      </div>
-                    )}
 
-                    {uploadSuccess && (
-                      <div className="absolute inset-0 bg-green-500/90 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-white">
-                        <i className="fa-solid fa-circle-check text-3xl mb-2 animate-bounce"></i>
-                        <p className="text-base font-black">Saved!</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Upload Options */}
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <button 
-                      onClick={() => !uploading && cameraInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-xs transition-all active:scale-95"
-                    >
-                      <i className="fa-solid fa-camera text-[#11AB2F]"></i>
-                      Capture
-                    </button>
-                    <button 
-                      onClick={() => !uploading && fileInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-xs transition-all active:scale-95"
-                    >
-                      <i className="fa-solid fa-images text-[#11AB2F]"></i>
-                      Gallery
-                    </button>
-                  </div>
+                      {uploading && (
+                        <div className="space-y-2">
+                          <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${uploadProgress}%` }}
+                              className="h-full bg-[#11AB2F]"
+                            />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <p className="text-[8px] font-black text-[#11AB2F] uppercase tracking-widest animate-pulse">Uploading...</p>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{uploadProgress}%</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <input 
                     type="file" 
@@ -484,6 +589,18 @@ const TrackView: React.FC<TrackViewProps> = ({ crops, trackEntries, onAddEntry, 
                         {new Date(selectedEntry.timestamp).toLocaleDateString(undefined, { dateStyle: 'full' })}
                       </p>
                     </div>
+                  </div>
+                  <div className={`px-4 py-2 rounded-full flex items-center gap-2 ${
+                    selectedEntry.category === 'Plant' ? 'bg-green-50 text-green-600' :
+                    selectedEntry.category === 'Farm' ? 'bg-blue-50 text-blue-600' :
+                    selectedEntry.category === 'Disease' ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-600'
+                  }`}>
+                    <i className={`fa-solid text-xs ${
+                      selectedEntry.category === 'Plant' ? 'fa-leaf' :
+                      selectedEntry.category === 'Farm' ? 'fa-tractor' :
+                      selectedEntry.category === 'Disease' ? 'fa-bug' : 'fa-camera'
+                    }`}></i>
+                    <span className="text-[10px] font-black uppercase tracking-widest">{selectedEntry.category}</span>
                   </div>
                 </div>
                 {selectedEntry.description && (

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import Header from './components/Header';
 import SummaryBox from './components/SummaryBox';
 import QuickActions from './components/QuickActions';
@@ -13,11 +14,29 @@ import NotepadView from './components/NotepadView';
 import TrackView from './components/TrackView';
 import CalculatorPopup from './components/CalculatorPopup';
 import Sidebar from './components/Sidebar';
-import LockScreen from './components/LockScreen';
+import AuthScreen from './components/Auth/AuthScreen';
 import { FarmSummary, NavItem, AppView, Crop, Earning, Note, TrackEntry } from './types';
-import { fetchFirebaseData, saveCropToFirebase, deleteCropFromFirebase, saveEarningToFirebase, deleteEarningFromFirebase, saveNoteToFirebase, deleteNoteFromFirebase, saveTrackEntryToFirebase, deleteTrackEntryFromFirebase, subscribeToTrackEntries, fetchProfilePhotoFromFirebase, saveProfilePhotoToFirebase } from './services/firebaseService';
+import { 
+  auth, 
+  onAuthStateChanged, 
+  signOut, 
+  fetchFirebaseData, 
+  saveCropToFirebase, 
+  deleteCropFromFirebase, 
+  saveEarningToFirebase, 
+  deleteEarningFromFirebase, 
+  saveNoteToFirebase, 
+  deleteNoteFromFirebase, 
+  saveTrackEntryToFirebase, 
+  deleteTrackEntryFromFirebase, 
+  subscribeToTrackEntries, 
+  fetchProfilePhotoFromFirebase, 
+  saveProfilePhotoToFirebase 
+} from './services/firebaseService';
 
 const App: React.FC = () => {
+  const [user, setUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<NavItem>('home');
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [selectedCropId, setSelectedCropId] = useState<string | null>(null);
@@ -28,20 +47,77 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(() => localStorage.getItem('farm_profile_photo'));
 
-  // Password Lock State
-  const getInitialLockState = () => {
-    const saved = localStorage.getItem('farm_lock_enabled');
-    return saved === null ? true : saved === 'true';
-  };
+  // 0. Auth State Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+      
+      if (currentUser) {
+        // Clear local storage if user changed? 
+        // For now just let hydration handle it
+      } else {
+        // Clear state on logout
+        setCrops([]);
+        setEarnings([]);
+        setNotes([]);
+        setTrackEntries([]);
+        setProfilePhoto(null);
+        localStorage.removeItem('farm_crops');
+        localStorage.removeItem('farm_earnings');
+        localStorage.removeItem('farm_notes');
+        localStorage.removeItem('farm_track');
+        localStorage.removeItem('farm_profile_photo');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const [isPasswordEnabled, setIsPasswordEnabled] = useState(getInitialLockState);
-  const [savedPassword, setSavedPassword] = useState(() => {
-    return localStorage.getItem('farm_lock_password') || '1911';
-  });
-  const [isAppLocked, setIsAppLocked] = useState(getInitialLockState);
-  
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [newPasswordInput, setNewPasswordInput] = useState('');
+  // Back Button & History Management
+  const [lastBackPress, setLastBackPress] = useState(0);
+  const [showExitToast, setShowExitToast] = useState(false);
+
+  useEffect(() => {
+    // Initialize history state if not present
+    if (!window.history.state) {
+      window.history.replaceState({ view: 'dashboard', id: null }, '');
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        // Navigating within the app via browser back/forward
+        const { view, id } = event.state;
+        setCurrentView(view);
+        setSelectedCropId(id || null);
+        
+        // Sync active tab
+        if (view === 'dashboard') setActiveTab('home');
+        else if (view === 'my-crops') setActiveTab('manage');
+        else if (view === 'notepad') setActiveTab('notepad');
+      } else {
+        // Reached the start of history
+        if (currentView === 'dashboard') {
+          const now = Date.now();
+          if (now - lastBackPress < 2000) {
+            // Double tap! We can't close the tab, but we can go back to previous site
+            window.history.back();
+          } else {
+            setLastBackPress(now);
+            setShowExitToast(true);
+            setTimeout(() => setShowExitToast(false), 2000);
+            // Push state back to stay in app and intercept next back press
+            window.history.pushState({ view: 'dashboard', id: null }, '');
+          }
+        } else {
+          // Fallback to dashboard
+          handleNavigate('dashboard');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentView, lastBackPress]);
 
   // Initialize state from LocalStorage for immediate UI response
   const [crops, setCrops] = useState<Crop[]>(() => {
@@ -82,6 +158,8 @@ const App: React.FC = () => {
 
   // 1. One-time Hydration from Firebase on App Start
   useEffect(() => {
+    if (!user) return;
+    
     const hydrate = async () => {
       setIsSyncing(true);
       const remoteData = await fetchFirebaseData();
@@ -105,10 +183,12 @@ const App: React.FC = () => {
       setIsSyncing(false);
     };
     hydrate();
-  }, []);
+  }, [user]);
 
   // 1.1 Real-time Subscription for Track Entries
   useEffect(() => {
+    if (!user) return;
+
     const unsubscribe = subscribeToTrackEntries((entries) => {
       // Ensure unique entries by ID to prevent React key errors
       const uniqueEntries = Array.from(new Map(entries.map(item => [item.id, item])).values());
@@ -116,7 +196,7 @@ const App: React.FC = () => {
       localStorage.setItem('farm_track', JSON.stringify(uniqueEntries));
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // 2. Monitor Connectivity
   useEffect(() => {
@@ -249,7 +329,19 @@ const App: React.FC = () => {
   const handleNavigate = (view: AppView, id?: string) => {
     setCurrentView(view);
     if (id) setSelectedCropId(id);
+    else setSelectedCropId(null);
     window.scrollTo(0, 0);
+
+    // Sync active tab
+    if (view === 'dashboard') setActiveTab('home');
+    else if (view === 'my-crops') setActiveTab('manage');
+    else if (view === 'notepad') setActiveTab('notepad');
+
+    // Push to browser history if different from current
+    const currentState = window.history.state;
+    if (!currentState || currentState.view !== view || currentState.id !== (id || null)) {
+      window.history.pushState({ view, id: id || null }, '');
+    }
   };
 
   const handleExportData = () => {
@@ -275,8 +367,19 @@ const App: React.FC = () => {
 
   const activeCrop = safeCrops.find(c => c.id === selectedCropId);
 
-  if (isAppLocked) {
-    return <LockScreen savedPassword={savedPassword} onUnlock={() => setIsAppLocked(false)} />;
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-slate-100 border-t-[#11AB2F] rounded-full animate-spin"></div>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading FarmBook...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen onAuthSuccess={() => {}} />;
   }
 
   return (
@@ -285,7 +388,7 @@ const App: React.FC = () => {
         <Header 
           syncStatus={isOnline ? (isSyncing ? 'syncing' : 'synced') : 'offline'} 
           onMenuClick={() => setIsSidebarOpen(true)}
-          profilePhoto={profilePhoto}
+          profilePhoto={profilePhoto || user.photoURL}
           onProfilePhotoUpdate={handleProfilePhotoUpdate}
         />
       )}
@@ -294,6 +397,8 @@ const App: React.FC = () => {
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
         onNavigate={(view) => handleNavigate(view)}
+        onLogout={() => signOut(auth)}
+        user={user}
       />
 
       <main className="flex-1 pb-24 overflow-y-auto no-scrollbar">
@@ -366,94 +471,10 @@ const App: React.FC = () => {
               <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
             </div>
 
-            {/* App Lock Section */}
-            <div className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-[#11AB2F]">
-                    <i className="fa-solid fa-shield-halved text-xl"></i>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900">App Lock</h3>
-                    <p className="text-xs text-slate-400">Secure your data with a PIN</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => {
-                    const newState = !isPasswordEnabled;
-                    setIsPasswordEnabled(newState);
-                    localStorage.setItem('farm_lock_enabled', String(newState));
-                  }}
-                  className={`w-14 h-8 rounded-full p-1 transition-all duration-300 flex items-center ${isPasswordEnabled ? 'bg-[#11AB2F]' : 'bg-slate-200'}`}
-                >
-                  <div className={`w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 transform ${isPasswordEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                </button>
-              </div>
-
-              {isPasswordEnabled && (
-                <div className="pt-4 border-t border-slate-50 flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-600">Current PIN</span>
-                    <span className="text-sm font-mono font-bold bg-slate-50 px-3 py-1 rounded-lg text-slate-400">****</span>
-                  </div>
-                  <button 
-                    onClick={() => setIsChangingPassword(true)}
-                    className="w-full py-4 bg-slate-50 text-slate-800 rounded-2xl font-bold text-sm hover:bg-slate-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                  >
-                    <i className="fa-solid fa-key text-xs"></i>
-                    Change Password
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Coming Soon Placeholder */}
             <div className="bg-slate-100/50 rounded-[28px] p-8 text-center border-2 border-dashed border-slate-200">
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">More Features</p>
               <p className="text-slate-400 text-sm">Cloud Backup, Multi-language, and Export options coming soon!</p>
             </div>
-
-            {/* Change Password Modal */}
-            {isChangingPassword && (
-              <div className="fixed inset-0 z-[200] flex flex-col items-center justify-end animate-in fade-in duration-300">
-                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => setIsChangingPassword(false)}></div>
-                <div className="bg-white w-full max-w-md rounded-t-[32px] p-6 pb-10 shadow-2xl relative animate-in slide-in-from-bottom duration-500 pointer-events-auto">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-2xl font-bold text-slate-900">Change PIN</h3>
-                    <button onClick={() => setIsChangingPassword(false)} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 active:scale-90"><i className="fa-solid fa-xmark"></i></button>
-                  </div>
-                  <div className="space-y-5">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">New 4-Digit PIN</label>
-                      <input 
-                        type="password" 
-                        maxLength={4}
-                        pattern="\d*"
-                        inputMode="numeric"
-                        value={newPasswordInput} 
-                        onChange={e => setNewPasswordInput(e.target.value.replace(/\D/g, ''))} 
-                        placeholder="Enter new PIN" 
-                        className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl text-slate-800 focus:border-[#11AB2F] focus:bg-white outline-none transition-all font-mono text-center text-2xl tracking-[1em]" 
-                      />
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      if (newPasswordInput.length === 4) {
-                        setSavedPassword(newPasswordInput);
-                        localStorage.setItem('farm_lock_password', newPasswordInput);
-                        setIsChangingPassword(false);
-                        setNewPasswordInput('');
-                      }
-                    }}
-                    disabled={newPasswordInput.length !== 4}
-                    className={`w-full py-5 rounded-[20px] font-bold text-lg shadow-lg active:scale-95 transition-all mt-8 ${newPasswordInput.length === 4 ? 'bg-[#11AB2F] text-white shadow-green-200' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                  >
-                    Update PIN
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -482,13 +503,26 @@ const App: React.FC = () => {
             setIsCalculatorOpen(true);
             return;
           }
-          setActiveTab(tab);
-          if (tab === 'home') setCurrentView('dashboard');
-          if (tab === 'manage') setCurrentView('my-crops');
-          if (tab === 'notepad') setCurrentView('notepad');
+          if (tab === 'home') handleNavigate('dashboard');
+          if (tab === 'manage') handleNavigate('my-crops');
+          if (tab === 'notepad') handleNavigate('notepad');
         }} 
         onAddClick={() => setIsAddModalOpen(true)}
       />
+
+      {/* Exit Toast */}
+      <AnimatePresence>
+        {showExitToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[1000] bg-slate-800/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl border border-white/10 whitespace-nowrap"
+          >
+            Press again to exit
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

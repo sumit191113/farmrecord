@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Crop, AppView, Expense, Sale } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -20,7 +21,7 @@ interface CropManagementProps {
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-IN').format(val);
 
 const getTotalQuantity = (sales: Sale[]) => {
-  if (!sales || sales.length === 0) return '0';
+  if (!sales || sales.length === 0) return '0 kg';
   let total = 0;
   let unit = '';
   
@@ -37,27 +38,32 @@ const getTotalQuantity = (sales: Sale[]) => {
   });
   
   const formattedTotal = Number.isInteger(total) ? total.toString() : total.toFixed(2);
-  return `${formattedTotal}${unit ? ' ' + unit : ''}`;
+  return `${formattedTotal} ${unit || 'kg'}`;
 };
 
 const getTotalQuantityValue = (sales: Sale[]) => {
   if (!sales || sales.length === 0) return 0;
   let total = 0;
   sales.forEach(sale => {
-    const qtyStr = sale.quantity || '';
-    const numMatch = qtyStr.match(/(\d+(\.\d+)?)/);
-    if (numMatch) {
-      let val = parseFloat(numMatch[1]);
-      const unit = qtyStr.toLowerCase();
-      if (unit.includes('qtl') || unit.includes('quintal')) {
-        val *= 100;
-      } else if (unit.includes('ton')) {
-        val *= 1000;
-      }
-      total += val;
-    }
+    total += getSaleQuantityValue(sale.quantity);
   });
   return total;
+};
+
+const getSaleQuantityValue = (qtyStr: string) => {
+  if (!qtyStr) return 0;
+  const numMatch = qtyStr.match(/(\d+(\.\d+)?)/);
+  if (numMatch) {
+    let val = parseFloat(numMatch[1]);
+    const unit = qtyStr.toLowerCase();
+    if (unit.includes('qtl') || unit.includes('quintal')) {
+      val *= 100;
+    } else if (unit.includes('ton')) {
+      val *= 1000;
+    }
+    return val;
+  }
+  return 0;
 };
 
 const CropManagement: React.FC<CropManagementProps> = ({ 
@@ -147,6 +153,7 @@ const CropManagement: React.FC<CropManagementProps> = ({
   const [cropToDelete, setCropToDelete] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'expense' | 'sale' } | null>(null);
   const [downloadConfirm, setDownloadConfirm] = useState<'Expenses' | 'Sales' | null>(null);
+  const [chartType, setChartType] = useState<'amount' | 'quantity'>('amount');
 
   const toggleCropExpansion = (id: string) => {
     setExpandedCrops(prev => ({ ...prev, [id]: !prev[id] }));
@@ -482,7 +489,7 @@ const CropManagement: React.FC<CropManagementProps> = ({
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Quantity</label>
-            <input value={newSale.quantity} onChange={e => setNewSale({...newSale, quantity: e.target.value})} placeholder="e.g. 10 Qtl, 50 Kg" className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl text-slate-800 focus:border-[#11AB2F] focus:bg-white outline-none transition-all" />
+            <input value={newSale.quantity} onChange={e => setNewSale({...newSale, quantity: e.target.value})} placeholder="e.g. 50 (defaults to kg), 10 Qtl" className="w-full px-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl text-slate-800 focus:border-[#11AB2F] focus:bg-white outline-none transition-all" />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Location / Market</label>
@@ -860,7 +867,7 @@ const CropManagement: React.FC<CropManagementProps> = ({
           ) : (
             <div className="grid grid-cols-1 gap-2">
               {sortedExpenses.map((exp) => (
-                <div key={exp.id} className="bg-white rounded-[20px] p-3 flex items-center justify-between shadow-sm border border-slate-50 transition-all active:scale-[0.98]">
+                <div key={exp.id} className="bg-white rounded-[20px] p-3 flex items-center justify-between shadow-sm border-2 border-slate-800/30 transition-all active:scale-[0.98]">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-red-50 text-red-500 rounded-lg flex items-center justify-center border border-red-100/50">
                       <i className="fa-solid fa-receipt text-xs"></i>
@@ -908,13 +915,15 @@ const CropManagement: React.FC<CropManagementProps> = ({
           ) : (
             <div className="grid grid-cols-1 gap-2">
               {sortedSales.map((sale) => (
-                <div key={sale.id} className="bg-white rounded-[20px] p-3 flex items-center justify-between shadow-sm border border-slate-50 transition-all active:scale-[0.98]">
+                <div key={sale.id} className="bg-white rounded-[20px] p-3 flex items-center justify-between shadow-sm border-2 border-slate-800/30 transition-all active:scale-[0.98]">
                    <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-50 text-green-500 rounded-lg flex items-center justify-center border border-green-100/50">
                       <i className="fa-solid fa-cart-shopping text-xs"></i>
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-800 text-sm leading-tight">{sale.quantity}</h4>
+                      <h4 className="font-bold text-slate-800 text-sm leading-tight">
+                        {sale.quantity && /[a-zA-Z]/.test(sale.quantity) ? sale.quantity : `${sale.quantity || 0} kg`}
+                      </h4>
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                         {new Date(sale.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                         {sale.location ? ` • ${sale.location}` : ''}
@@ -922,7 +931,14 @@ const CropManagement: React.FC<CropManagementProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-base font-black text-green-600">₹{formatCurrency(sale.amount || 0)}</span>
+                    <div className="text-right">
+                      <p className="text-base font-black text-green-600 leading-none">₹{formatCurrency(sale.amount || 0)}</p>
+                      {getSaleQuantityValue(sale.quantity) > 0 && (
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                          ₹{((sale.amount || 0) / getSaleQuantityValue(sale.quantity)).toFixed(2)}/kg
+                        </p>
+                      )}
+                    </div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: sale.id, type: 'sale' }); }}
                       className="w-7 h-7 rounded-full bg-red-50 text-red-400 flex items-center justify-center active:scale-90 transition-all"
@@ -950,53 +966,150 @@ const CropManagement: React.FC<CropManagementProps> = ({
     const avgRate = totalQtyValue > 0 ? totalSale / totalQtyValue : 0;
     const profit = totalSale - totalExp;
     const isProfit = profit >= 0;
-    const ratio = (totalExp + totalSale === 0) ? 0 : (totalExp / (totalExp + totalSale)) * 100;
     
+    const chartData = [...(activeCrop.sales || [])]
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map(s => ({
+        date: new Date(s.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+        amount: s.amount,
+        quantity: parseFloat(s.quantity.match(/(\d+(\.\d+)?)/)?.[1] || '0')
+      }));
+
+    const salesWithRates = (activeCrop.sales || []).map(s => {
+      const qty = getSaleQuantityValue(s.quantity);
+      return {
+        ...s,
+        rate: qty > 0 ? s.amount / qty : 0
+      };
+    }).filter(s => s.rate > 0);
+
+    const bestSale = salesWithRates.length > 0 ? salesWithRates.reduce((prev, curr) => (curr.rate > prev.rate ? curr : prev)) : null;
+    const worstSale = salesWithRates.length > 0 ? salesWithRates.reduce((prev, curr) => (curr.rate < prev.rate ? curr : prev)) : null;
+
     viewContent = (
       <div className="bg-slate-50 min-h-screen animate-in slide-in-from-right duration-300">
         {renderHeader('Analytics', 'crop-detail', activeCrop.id)}
         <div className="p-5 space-y-6">
-          <div className="bg-gradient-to-br from-white to-green-50 rounded-[32px] p-8 border-2 border-[#11AB2F] shadow-lg shadow-green-900/10 flex flex-col items-center">
-            <h4 className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-widest">Revenue Breakdown</h4>
-            <div className="relative w-48 h-48">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="16" fill="transparent" stroke="#f1f5f9" strokeWidth="4"></circle>
-                <circle 
-                  cx="18" cy="18" r="16" fill="transparent" stroke="#11AB2F" strokeWidth="4" 
-                  strokeDasharray={(100 - ratio) + " 100"} 
-                ></circle>
-                <circle 
-                  cx="18" cy="18" r="16" fill="transparent" stroke="#ef4444" strokeWidth="4" 
-                  strokeDasharray={ratio + " 100"} 
-                  strokeDashoffset={"-" + (100 - ratio)}
-                ></circle>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Profit</p>
-                <p className={`text-xl font-black ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                  {isProfit ? '+' : '-'}{Math.round((Math.abs(profit) / (totalSale || 1)) * 100)}%
+          <div className="bg-white rounded-[32px] p-6 border-2 border-slate-800/30 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h4 className="text-slate-900 text-sm font-black tracking-tight">Sales Performance</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Trend Analysis</p>
+              </div>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button 
+                  onClick={() => setChartType('amount')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${chartType === 'amount' ? 'bg-white text-[#11AB2F] shadow-sm' : 'text-slate-400'}`}
+                >
+                  Amount
+                </button>
+                <button 
+                  onClick={() => setChartType('quantity')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${chartType === 'quantity' ? 'bg-white text-[#11AB2F] shadow-sm' : 'text-slate-400'}`}
+                >
+                  Quantity
+                </button>
+              </div>
+            </div>
+
+            <div className="w-full h-64 -ml-4">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#11AB2F" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#11AB2F" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      hide={true}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        borderRadius: '16px', 
+                        border: 'none', 
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey={chartType} 
+                      stroke="#11AB2F" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorValue)" 
+                      animationDuration={1500}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                  <i className="fa-solid fa-chart-line text-4xl mb-2"></i>
+                  <p className="text-[10px] font-bold uppercase tracking-widest">No sales data yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Best & Worst Sales Cards */}
+          {bestSale && worstSale && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-[24px] p-4 border-2 border-green-500/30 shadow-sm flex flex-col">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
+                    <i className="fa-solid fa-crown text-[10px]"></i>
+                  </div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Best Rate</span>
+                </div>
+                <p className="text-lg font-black text-green-600 leading-none">₹{bestSale.rate.toFixed(2)}<span className="text-[8px] text-slate-400 ml-0.5">/kg</span></p>
+                <p className="text-[9px] text-slate-500 font-bold mt-1.5 uppercase tracking-tighter">
+                  {new Date(bestSale.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-[24px] p-4 border-2 border-red-500/20 shadow-sm flex flex-col">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
+                    <i className="fa-solid fa-arrow-down-long text-[10px]"></i>
+                  </div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Worst Rate</span>
+                </div>
+                <p className="text-lg font-black text-red-500 leading-none">₹{worstSale.rate.toFixed(2)}<span className="text-[8px] text-slate-400 ml-0.5">/kg</span></p>
+                <p className="text-[9px] text-slate-500 font-bold mt-1.5 uppercase tracking-tighter">
+                  {new Date(worstSale.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                 </p>
               </div>
             </div>
-          </div>
+          )}
           
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-gradient-to-br from-white to-red-50 p-4 rounded-3xl border-2 border-red-100 shadow-md shadow-red-900/5">
+            <div className="bg-gradient-to-br from-white to-red-50 p-4 rounded-3xl border-2 border-red-500/20 shadow-md shadow-red-900/5">
               <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Expenses</p>
               <p className="text-sm font-bold text-red-500">₹{formatCurrency(totalExp)}</p>
             </div>
-            <div className="bg-gradient-to-br from-white to-green-50 p-4 rounded-3xl border-2 border-[#11AB2F]/20 shadow-md shadow-green-900/5">
+            <div className="bg-gradient-to-br from-white to-green-50 p-4 rounded-3xl border-2 border-[#11AB2F]/40 shadow-md shadow-green-900/5">
               <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Sales</p>
               <p className="text-sm font-bold text-green-600">₹{formatCurrency(totalSale)}</p>
             </div>
-            <div className="bg-gradient-to-br from-white to-blue-50 p-4 rounded-3xl border-2 border-blue-100 shadow-md shadow-blue-900/5">
+            <div className="bg-gradient-to-br from-white to-blue-50 p-4 rounded-3xl border-2 border-blue-500/20 shadow-md shadow-blue-900/5">
               <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Qty</p>
               <p className="text-sm font-bold text-blue-600">{getTotalQuantity(activeCrop.sales || [])}</p>
             </div>
           </div>
 
           {/* Avg Rate Box */}
-          <div className="bg-white rounded-[28px] p-6 border-2 border-slate-100 shadow-sm flex items-center justify-between">
+          <div className="bg-white rounded-[28px] p-6 border-2 border-slate-800/30 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-100">
                 <i className="fa-solid fa-scale-balanced text-xl"></i>

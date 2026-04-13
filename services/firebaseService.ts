@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, get, child, update, remove, onValue, off } from "firebase/database";
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "firebase/auth";
 import { Crop, Earning, Note, TrackEntry } from "../types";
 
 const firebaseConfig = {
@@ -16,26 +17,32 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const storage = getStorage(app);
+export const db = getDatabase(app);
+export const storage = getStorage(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
 
-// Global shared path
-const SHARED_ROOT = "farmbook_global_data";
-const CROPS_PATH = `${SHARED_ROOT}/crops`;
-const EARNINGS_PATH = `${SHARED_ROOT}/earnings`;
-const NOTES_PATH = `${SHARED_ROOT}/notes`;
-const TRACK_PATH = `${SHARED_ROOT}/track`;
-const PROFILE_PATH = `${SHARED_ROOT}/profile`;
+// User-specific paths
+const getUserRoot = () => {
+  const user = auth.currentUser;
+  return user ? `users/${user.uid}` : "farmbook_global_data";
+};
+
+const getCropsPath = () => `${getUserRoot()}/crops`;
+const getEarningsPath = () => `${getUserRoot()}/earnings`;
+const getNotesPath = () => `${getUserRoot()}/notes`;
+const getTrackPath = () => `${getUserRoot()}/track`;
+const getProfilePath = () => `${getUserRoot()}/profile`;
 
 /**
- * Fetches the entire global state once for hydration
+ * Fetches the user data once for hydration
  */
 export const fetchFirebaseData = async (): Promise<{ crops: Crop[], earnings: Earning[], notes: Note[], trackEntries: TrackEntry[] } | null> => {
-  if (!navigator.onLine) return null;
+  if (!navigator.onLine || !auth.currentUser) return null;
 
   try {
     const dbRef = ref(db);
-    const snapshot = await get(child(dbRef, SHARED_ROOT));
+    const snapshot = await get(child(dbRef, getUserRoot()));
     if (snapshot.exists()) {
       const data = snapshot.val();
       return {
@@ -56,9 +63,9 @@ export const fetchFirebaseData = async (): Promise<{ crops: Crop[], earnings: Ea
  * Surgical update for a single crop
  */
 export const saveCropToFirebase = async (crop: Crop) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const cropRef = ref(db, `${CROPS_PATH}/${crop.id}`);
+    const cropRef = ref(db, `${getCropsPath()}/${crop.id}`);
     await set(cropRef, crop);
   } catch (error) {
     console.error("Firebase Save Crop Error:", error);
@@ -69,9 +76,9 @@ export const saveCropToFirebase = async (crop: Crop) => {
  * Surgical delete for a single crop
  */
 export const deleteCropFromFirebase = async (cropId: string) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const cropRef = ref(db, `${CROPS_PATH}/${cropId}`);
+    const cropRef = ref(db, `${getCropsPath()}/${cropId}`);
     await remove(cropRef);
   } catch (error) {
     console.error("Firebase Delete Crop Error:", error);
@@ -82,9 +89,9 @@ export const deleteCropFromFirebase = async (cropId: string) => {
  * Surgical update for a single earning
  */
 export const saveEarningToFirebase = async (earning: Earning) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const earningRef = ref(db, `${EARNINGS_PATH}/${earning.id}`);
+    const earningRef = ref(db, `${getEarningsPath()}/${earning.id}`);
     await set(earningRef, earning);
   } catch (error) {
     console.error("Firebase Save Earning Error:", error);
@@ -95,9 +102,9 @@ export const saveEarningToFirebase = async (earning: Earning) => {
  * Surgical delete for a single earning
  */
 export const deleteEarningFromFirebase = async (earningId: string) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const earningRef = ref(db, `${EARNINGS_PATH}/${earningId}`);
+    const earningRef = ref(db, `${getEarningsPath()}/${earningId}`);
     await remove(earningRef);
   } catch (error) {
     console.error("Firebase Delete Earning Error:", error);
@@ -108,9 +115,9 @@ export const deleteEarningFromFirebase = async (earningId: string) => {
  * Surgical update for a single note
  */
 export const saveNoteToFirebase = async (note: Note) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const noteRef = ref(db, `${NOTES_PATH}/${note.id}`);
+    const noteRef = ref(db, `${getNotesPath()}/${note.id}`);
     await set(noteRef, note);
   } catch (error) {
     console.error("Firebase Save Note Error:", error);
@@ -121,9 +128,9 @@ export const saveNoteToFirebase = async (note: Note) => {
  * Surgical delete for a single note
  */
 export const deleteNoteFromFirebase = async (noteId: string) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const noteRef = ref(db, `${NOTES_PATH}/${noteId}`);
+    const noteRef = ref(db, `${getNotesPath()}/${noteId}`);
     await remove(noteRef);
   } catch (error) {
     console.error("Firebase Delete Note Error:", error);
@@ -134,8 +141,9 @@ export const deleteNoteFromFirebase = async (noteId: string) => {
  * Uploads an image to Firebase Storage and returns the URL
  */
 export const uploadTrackImage = async (file: File, cropId: string): Promise<string> => {
+  if (!auth.currentUser) throw new Error("User not authenticated");
   const fileName = `${Date.now()}_${file.name}`;
-  const storageReference = sRef(storage, `track_images/${cropId}/${fileName}`);
+  const storageReference = sRef(storage, `track_images/${auth.currentUser.uid}/${cropId}/${fileName}`);
   await uploadBytes(storageReference, file);
   return getDownloadURL(storageReference);
 };
@@ -183,9 +191,9 @@ export const uploadToCloudinary = async (file: File): Promise<string> => {
  * Saves a track entry to Firebase
  */
 export const saveTrackEntryToFirebase = async (entry: TrackEntry) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const trackRef = ref(db, `${TRACK_PATH}/${entry.id}`);
+    const trackRef = ref(db, `${getTrackPath()}/${entry.id}`);
     await set(trackRef, entry);
   } catch (error) {
     console.error("Firebase Save Track Entry Error:", error);
@@ -196,10 +204,10 @@ export const saveTrackEntryToFirebase = async (entry: TrackEntry) => {
  * Deletes a track entry and its associated image
  */
 export const deleteTrackEntryFromFirebase = async (entry: TrackEntry) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
     // Delete from DB
-    const trackRef = ref(db, `${TRACK_PATH}/${entry.id}`);
+    const trackRef = ref(db, `${getTrackPath()}/${entry.id}`);
     await remove(trackRef);
 
     // Try to delete from Storage if it's a firebase URL
@@ -216,7 +224,8 @@ export const deleteTrackEntryFromFirebase = async (entry: TrackEntry) => {
  * Listens for real-time updates to track entries
  */
 export const subscribeToTrackEntries = (callback: (entries: TrackEntry[]) => void) => {
-  const trackRef = ref(db, TRACK_PATH);
+  if (!auth.currentUser) return () => {};
+  const trackRef = ref(db, getTrackPath());
   onValue(trackRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
@@ -233,9 +242,9 @@ export const subscribeToTrackEntries = (callback: (entries: TrackEntry[]) => voi
  * Saves profile photo URL to Firebase
  */
 export const saveProfilePhotoToFirebase = async (photoUrl: string) => {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || !auth.currentUser) return;
   try {
-    const profileRef = ref(db, PROFILE_PATH);
+    const profileRef = ref(db, getProfilePath());
     await set(profileRef, { photoUrl });
   } catch (error) {
     console.error("Firebase Save Profile Photo Error:", error);
@@ -246,9 +255,9 @@ export const saveProfilePhotoToFirebase = async (photoUrl: string) => {
  * Fetches profile photo URL from Firebase
  */
 export const fetchProfilePhotoFromFirebase = async (): Promise<string | null> => {
-  if (!navigator.onLine) return null;
+  if (!navigator.onLine || !auth.currentUser) return null;
   try {
-    const profileRef = ref(db, PROFILE_PATH);
+    const profileRef = ref(db, getProfilePath());
     const snapshot = await get(profileRef);
     if (snapshot.exists()) {
       return snapshot.val().photoUrl;
@@ -259,3 +268,5 @@ export const fetchProfilePhotoFromFirebase = async (): Promise<string | null> =>
     return null;
   }
 };
+
+export { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile };

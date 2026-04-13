@@ -6,9 +6,11 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (view: AppView) => void;
+  onLogout: () => void;
+  user: any;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, onLogout, user }) => {
   const menuItems = [
     { icon: 'fa-house', label: 'Dashboard', view: 'dashboard' as AppView },
     { icon: 'fa-seedling', label: 'My Crops', view: 'my-crops' as AppView },
@@ -34,15 +36,27 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate }) => {
         className={`fixed top-0 left-0 bottom-0 w-[280px] bg-white z-[101] shadow-2xl transition-transform duration-300 ease-out transform ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="p-6 border-b border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-2xl font-black text-[#11AB2F] tracking-tighter italic">FARM BOOK</h2>
-              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-full active:scale-90">
+          {/* Header with User Info */}
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-white shadow-sm border border-slate-100 overflow-hidden flex items-center justify-center">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <i className="fa-solid fa-user text-slate-200 text-2xl"></i>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-black text-slate-900 truncate tracking-tight">{user?.displayName || 'Farmer'}</h3>
+                <p className="text-[10px] text-slate-400 font-bold truncate uppercase tracking-widest">{user?.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-[#11AB2F] tracking-tighter italic">FARM BOOK</h2>
+              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 rounded-full shadow-sm active:scale-90">
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Smart Farming Assistant</p>
           </div>
 
           {/* Menu Items */}
@@ -64,8 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate }) => {
             ))}
           </div>
 
-          {/* Footer / Settings */}
-          <div className="p-4 border-t border-slate-100">
+          {/* Footer / Settings & Logout */}
+          <div className="p-4 border-t border-slate-100 space-y-2">
             <button
               onClick={() => {
                 onNavigate('settings');
@@ -77,6 +91,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate }) => {
                 <i className="fa-solid fa-gear text-lg"></i>
               </div>
               <span className="font-bold text-sm">Settings</span>
+            </button>
+            <button
+              onClick={() => {
+                onLogout();
+                onClose();
+              }}
+              className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-red-500 hover:bg-red-50 transition-all active:scale-[0.98]"
+            >
+              <div className="w-10 h-10 flex items-center justify-center bg-red-50 rounded-xl">
+                <i className="fa-solid fa-right-from-bracket text-lg"></i>
+              </div>
+              <span className="font-bold text-sm">Logout</span>
             </button>
             <div className="mt-4 text-center">
               <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Version 1.0.0</p>

@@ -5,6 +5,7 @@ import { Crop, AppView, Expense, Sale } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { uploadToCloudinary } from '../services/firebaseService';
+import MonitorCalendar from './MonitorCalendar';
 
 interface CropManagementProps {
   view: AppView;
@@ -95,6 +96,7 @@ const CropManagement: React.FC<CropManagementProps> = ({
   // Modal States
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
+  const [isMonitorOpen, setIsMonitorOpen] = useState(false);
   
   const [newExpense, setNewExpense] = useState({ name: '', amount: '', date: new Date().toISOString().split('T')[0] });
   const [newSale, setNewSale] = useState({ quantity: '', location: '', amount: '', date: new Date().toISOString().split('T')[0] });
@@ -1124,6 +1126,16 @@ const CropManagement: React.FC<CropManagementProps> = ({
               <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tighter">per kg</p>
             </div>
           </div>
+
+          <button 
+            onClick={() => setIsMonitorOpen(true)}
+            className="w-full py-5 bg-white border-2 border-slate-800/30 text-slate-800 rounded-[28px] font-black text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-sm hover:border-[#11AB2F] hover:text-[#11AB2F] group"
+          >
+            <div className="w-8 h-8 bg-slate-50 group-hover:bg-green-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:text-[#11AB2F] transition-colors">
+              <i className="fa-solid fa-calendar-check"></i>
+            </div>
+            Monitor Sales & Expenses
+          </button>
         </div>
       </div>
     );
@@ -1144,6 +1156,14 @@ const CropManagement: React.FC<CropManagementProps> = ({
       {addCropModalJSX}
       {addExpenseModalJSX}
       {addSaleModalJSX}
+
+      {activeCrop && (
+        <MonitorCalendar 
+          isOpen={isMonitorOpen} 
+          onClose={() => setIsMonitorOpen(false)} 
+          crop={activeCrop} 
+        />
+      )}
 
       {/* Download Confirmation Modal */}
       {downloadConfirm && (
